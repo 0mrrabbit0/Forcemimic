@@ -1,0 +1,7 @@
+save_path = ./pre_peel_data/20240830
+t265_id = 230322111188
+pyft_id = 192.168.1.10
+pyft_port = 49152
+bdft_id = 192.168.0.20
+bdft_port = 502
+d455_id = 333422303302

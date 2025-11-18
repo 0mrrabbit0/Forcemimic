@@ -1,0 +1,16 @@
+# 传感器IP
+BLUEDOT_IP = "192.168.0.20" 
+# 通信端口
+BLUEDOT_PORT = 502            
+# 从站ID
+BLUEDOT_SLAVE_ID = 20
+# 采样频率
+BLUEDOT_FPS = 100
+# 数据缩放倍率
+BLUEDOT_SCALE = 1.0
+# 最大重试次数
+BLUEDOT_RETRY = 3
+# 超时等待时间
+BLUEDOT_RETRY_DELAY = 0.5
+# 设备ID
+BLUEDOT_ID = BLUEDOT_IP
