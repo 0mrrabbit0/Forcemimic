@@ -1,312 +1,319 @@
-# d455.py  —— 完整可运行最终版本（对外 API 100% 等同原 T265）
 import os
+from typing import Tuple, Optional
 import time
-from typing import Tuple, Optional, Callable
 import numpy as np
 import cv2
 from scipy.spatial.transform import Rotation as Rot
 from threading import Lock
 import pyrealsense2 as rs
 
+# 假设 r3kit.devices.camera.base 和 r3kit.utils.vis 模块存在
+from r3kit.devices.camera.base import CameraBase 
+# from r3kit.devices.camera.realsense.config import *
+# from r3kit.utils.vis import draw_time, save_imgs 
 
-class CameraBase:
-    """最小 CameraBase 保留接口一致即可"""
-    def __init__(self, name='camera'):
-        self.name = name
-
-
-# D455 默认参数
-D455_COLOR_W = 640
-D455_COLOR_H = 480
-D455_FPS = 30
-
+# -----------------------------------------------------
+# 辅助函数 (占位符)
+# -----------------------------------------------------
+def draw_time(timestamps, save_path): pass
+def save_imgs(save_dir, images): 
+    for i, img in enumerate(images):
+        cv2.imwrite(os.path.join(save_dir, f"{i:06d}.png"), img)
+    
+# -----------------------------------------------------
+# D455 相机类 (集成双重积分)
+# -----------------------------------------------------
 
 class D455(CameraBase):
-    """
-    这是 D455 版，完全兼容原 T265 API：
-      - start_streaming(callback=None)
-      - stop_streaming()
-      - get()
-      - collect_streaming()
-      - save_streaming()
-      - raw2pose()
-    """
-    def __init__(self, id: Optional[str] = None, image: bool = True, name='D455') -> None:
+    def __init__(self, id:Optional[str]=None, image:bool=True, name:str='D455') -> None:
         super().__init__(name=name)
         self._image = image
 
-        # RealSense 管线
         self.pipeline = rs.pipeline()
         self.config = rs.config()
+        
         if id is not None:
             self.config.enable_device(id)
-
-        # Color + Depth + IMU
-        self.config.enable_stream(rs.stream.color, D455_COLOR_W, D455_COLOR_H,
-                                  rs.format.bgr8, D455_FPS)
-        self.config.enable_stream(rs.stream.depth, D455_COLOR_W, D455_COLOR_H,
-                                  rs.format.z16, D455_FPS)
-
-        try:
-            self.config.enable_stream(rs.stream.gyro)
-            self.config.enable_stream(rs.stream.accel)
-        except Exception:
-            pass
-
-        # streaming 数据缓冲
-        self.image_streaming_mutex = Lock()
-        self.pose_streaming_mutex = Lock()
-
-        self.image_streaming_data = {"left": [], "right": [], "timestamp_ms": []}
-        self.pose_streaming_data = {"xyz": [], "quat": [], "timestamp_ms": []}
-
-        self._collect_streaming_data = True
-        self.in_streaming = False
-
-        # VIO 状态
-        self._prev_color = None
-        self._prev_depth = None
-        self._K = None
-        self._pose_world = np.eye(4)
-        self._vio_lock = Lock()
-
-        # 可外部提供一个 vio_update(color, depth, ts)
-        self.vio_update: Optional[Callable] = None
-
-    # -----------------------------------------------------------
-    # 启动
-    # -----------------------------------------------------------
-    def start_streaming(self, callback: Optional[Callable] = None) -> None:
-        if callback:
-            self.profile = self.pipeline.start(self.config, callback)
-        else:
-            self.profile = self.pipeline.start(self.config, self._internal_callback)
-
-            # 获取相机内参
-            intr = self.profile.get_stream(rs.stream.color).as_video_stream_profile().get_intrinsics()
-            self._K = (intr.fx, intr.fy, intr.ppx, intr.ppy)
-
-        self.in_streaming = True
-
-    # -----------------------------------------------------------
-    def stop_streaming(self) -> dict:
-        try:
-            self.pipeline.stop()
-        except Exception:
-            pass
-
-        data = {
-            "image": self.image_streaming_data,
-            "pose": self.pose_streaming_data
-        }
-
-        # 清空缓存
-        self.image_streaming_data = {"left": [], "right": [], "timestamp_ms": []}
-        self.pose_streaming_data = {"xyz": [], "quat": [], "timestamp_ms": []}
+        
+        # D455 流配置: 双目红外 + IMU
+        if self._image:
+            self.config.enable_stream(rs.stream.infrared, 1, 848, 480, rs.format.y8, 30)
+            self.config.enable_stream(rs.stream.infrared, 2, 848, 480, rs.format.y8, 30)
+        
+        # 启用 IMU 流 (Accel & Gyro)
+        self.config.enable_stream(rs.stream.accel)
+        self.config.enable_stream(rs.stream.gyro)
+        
+        # ------------------------------------------
+        # 核心修改: 状态变量
+        # ------------------------------------------
+        # 姿态积分状态 (Gyro)
+        self._last_ts_gyro = None
+        self._current_quat = np.array([0.0, 0.0, 0.0, 1.0]) 
+        
+        # 位置积分状态 (Accel)
+        self._current_xyz = np.array([0.0, 0.0, 0.0])  # P
+        self._current_vel = np.array([0.0, 0.0, 0.0])  # V
+        self._last_ts_accel = None                    # Accel 时间戳
+        # ------------------------------------------
 
         self.in_streaming = False
-        return data
 
-    # -----------------------------------------------------------
-    def collect_streaming(self, collect: bool = True):
-        self._collect_streaming_data = collect
-
-    # -----------------------------------------------------------
     def get(self) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], np.ndarray, np.ndarray]:
         if not self.in_streaming:
-            raise NotImplementedError("Not streaming")
+            raise NotImplementedError
+        else:
+            if hasattr(self, "image_streaming_data"):
+                # 获取锁，访问数据
+                self.image_streaming_mutex.acquire()
+                self.pose_streaming_mutex.acquire()
+                
+                # 获取图像
+                if self._image and len(self.image_streaming_data["left"]) > 0:
+                    left_image = self.image_streaming_data["left"][-1]
+                    right_image = self.image_streaming_data["right"][-1]
+                else:
+                    left_image = None
+                    right_image = None
+                
+                # 获取位姿 (使用双重积分的值)
+                xyz = self._current_xyz.copy() 
+                quat = self._current_quat.copy()
 
-        with self.image_streaming_mutex:
-            left = self.image_streaming_data["left"][-1] if len(self.image_streaming_data["left"]) else None
-            right = self.image_streaming_data["right"][-1] if len(self.image_streaming_data["right"]) else None
+                # 释放锁
+                self.pose_streaming_mutex.release()
+                self.image_streaming_mutex.release()
+                return (left_image, right_image, xyz, quat)
+            else:
+                raise AttributeError
+    
+    def start_streaming(self, callback:Optional[callable]=None) -> None:
+        if not hasattr(self, "_collect_streaming_data"):
+            self._collect_streaming_data = True
+            
+        if callback is not None:
+            self.pipeline_profile = self.pipeline.start(self.config, callback)
+        else:
+            self.image_streaming_mutex = Lock()
+            self.image_streaming_data = {
+                "left": [], "right": [], "timestamp_ms": [], 
+            }
+            self.pose_streaming_mutex = Lock()
+            self.pose_streaming_data = {
+                "xyz": [], "quat": [], "timestamp_ms": [], 
+            }
+            # 重置 IMU 状态
+            self._last_ts_gyro = None
+            self._current_quat = np.array([0.0, 0.0, 0.0, 1.0]) 
+            self._current_xyz = np.array([0.0, 0.0, 0.0]) 
+            self._current_vel = np.array([0.0, 0.0, 0.0])
+            self._last_ts_accel = None
+            
+            self.pipeline_profile = self.pipeline.start(self.config, self.callback)
+        self.in_streaming = True
 
-        with self.pose_streaming_mutex:
-            xyz = self.pose_streaming_data["xyz"][-1] if len(self.pose_streaming_data["xyz"]) else np.zeros(3)
-            quat = self.pose_streaming_data["quat"][-1] if len(self.pose_streaming_data["quat"]) else np.array([0,0,0,1])
-
-        return left, right, xyz, quat
-
-    # -----------------------------------------------------------
-    def save_streaming(self, save_path: str, data: dict):
-        os.makedirs(save_path, exist_ok=True)
-
-        # 保存图像
+    def stop_streaming(self) -> Optional[dict]:
+        # 保持与 T265 相同的 stop_streaming 逻辑
+        streaming_data = None
+        try:
+            self.pipeline.stop()
+        except RuntimeError:
+            pass
+            
+        # ... (数据清理逻辑省略，与上一个版本相同) ...
+        if hasattr(self, "image_streaming_mutex"): self.image_streaming_mutex = None
+        if hasattr(self, "image_streaming_data"):
+            streaming_data = {'image': self.image_streaming_data}
+            self.image_streaming_data = {"left": [], "right": [], "timestamp_ms": []}
+        if hasattr(self, "pose_streaming_mutex"): self.pose_streaming_mutex = None
+        if hasattr(self, "pose_streaming_data"):
+            if streaming_data is None: streaming_data = {}
+            streaming_data['pose'] = self.pose_streaming_data
+            self.pose_streaming_data = {"xyz": [], "quat": [], "timestamp_ms": []}
+            
+        self.in_streaming = False
+        return streaming_data
+    
+    def save_streaming(self, save_path:str, streaming_data:dict) -> None:
+        # 保持与 T265 相同的 save_streaming 逻辑
+        assert len(streaming_data["image"]["left"]) == len(streaming_data["image"]["right"])
+        assert len(streaming_data["pose"]["xyz"]) == len(streaming_data["pose"]["quat"])
+        
         if self._image:
-            img = data["image"]
-            os.makedirs(os.path.join(save_path, "image", "left"), exist_ok=True)
-            os.makedirs(os.path.join(save_path, "image", "right"), exist_ok=True)
+            os.makedirs(os.path.join(save_path, 'image'), exist_ok=True)
+            np.save(os.path.join(save_path, 'image', "timestamps.npy"), np.array(streaming_data["image"]["timestamp_ms"], dtype=float))
+            if len(streaming_data["image"]["timestamp_ms"]) > 1:
+                freq = len(streaming_data["image"]["timestamp_ms"]) / (streaming_data["image"]["timestamp_ms"][-1] - streaming_data["image"]["timestamp_ms"][0] + 1e-6) * 1000
+                draw_time(streaming_data["image"]["timestamp_ms"], os.path.join(save_path, 'image', f"freq_{freq:.2f}.png"))
+            os.makedirs(os.path.join(save_path, 'image', 'left'), exist_ok=True)
+            os.makedirs(os.path.join(save_path, 'image', 'right'), exist_ok=True)
+            save_imgs(os.path.join(save_path, 'image', 'left'), streaming_data["image"]["left"])
+            save_imgs(os.path.join(save_path, 'image', 'right'), streaming_data["image"]["right"])
+        
+        os.makedirs(os.path.join(save_path, 'pose'), exist_ok=True)
+        np.save(os.path.join(save_path, 'pose', "timestamps.npy"), np.array(streaming_data["pose"]["timestamp_ms"], dtype=float))
+        
+        if len(streaming_data["pose"]["timestamp_ms"]) > 1:
+            freq = len(streaming_data["pose"]["timestamp_ms"]) / (streaming_data["pose"]["timestamp_ms"][-1] - streaming_data["pose"]["timestamp_ms"][0] + 1e-6) * 1000
+            draw_time(streaming_data["pose"]["timestamp_ms"], os.path.join(save_path, 'pose', f"freq_{freq:.2f}.png"))
+            
+        np.save(os.path.join(save_path, 'pose', "xyz.npy"), np.array(streaming_data["pose"]["xyz"], dtype=float))
+        np.save(os.path.join(save_path, 'pose', "quat.npy"), np.array(streaming_data["pose"]["quat"], dtype=float))
 
-            np.save(os.path.join(save_path, "image", "timestamps.npy"),
-                    np.array(img["timestamp_ms"], dtype=float))
+    def collect_streaming(self, collect:bool=True) -> None:
+        self._collect_streaming_data = collect
 
-            for i, im in enumerate(img["left"]):
-                cv2.imwrite(os.path.join(save_path, "image", "left", f"{i:06d}.png"), im)
-
-            for i, im in enumerate(img["right"]):
-                cv2.imwrite(os.path.join(save_path, "image", "right", f"{i:06d}.png"), im)
-
-        # 保存位姿
-        pose = data["pose"]
-        os.makedirs(os.path.join(save_path, "pose"), exist_ok=True)
-
-        np.save(os.path.join(save_path, "pose", "timestamps.npy"),
-                np.array(pose["timestamp_ms"], dtype=float))
-        np.save(os.path.join(save_path, "pose", "xyz.npy"),
-                np.array(pose["xyz"], dtype=float))
-        np.save(os.path.join(save_path, "pose", "quat.npy"),
-                np.array(pose["quat"], dtype=float))
-
-    # -----------------------------------------------------------
-    def _internal_callback(self, frame):
-        ts = time.time() * 1000.0
-        if not self._collect_streaming_data:
+    def _process_gyro(self, gyro_frame):
+        # 姿态积分逻辑不变
+        ts = gyro_frame.get_timestamp() / 1000.0 
+        
+        if self._last_ts_gyro is None:
+            self._last_ts_gyro = ts
             return
 
+        dt = ts - self._last_ts_gyro
+        self._last_ts_gyro = ts
+        if dt > 0.1: return
+
+        gyro_data = gyro_frame.as_motion_frame().get_motion_data()
+        wx, wy, wz = gyro_data.x, gyro_data.y, gyro_data.z
+        
+        rot_vec = np.array([wx, wy, wz]) * dt
+        delta_rot = Rot.from_rotvec(rot_vec)
+        
+        current_rot = Rot.from_quat(self._current_quat)
+        new_rot = current_rot * delta_rot
+        
+        self._current_quat = new_rot.as_quat()
+
+    def _process_accel(self, accel_frame):
+        """
+        核心修改：加速度计双重积分，计算位置 (P)
+        !!! WARNING: 严重漂移 !!!
+        此计算未进行重力补偿或坐标系转换。结果不可用于实际导航。
+        """
+        ts = accel_frame.get_timestamp() / 1000.0 
+        
+        if self._last_ts_accel is None:
+            self._last_ts_accel = ts
+            return
+
+        dt = ts - self._last_ts_accel
+        self._last_ts_accel = ts
+        if dt > 0.1: return
+
+        accel_data = accel_frame.as_motion_frame().get_motion_data()
+        # a 是原始测量值，包含了 9.8m/s^2 的重力加速度。
+        a = np.array([accel_data.x, accel_data.y, accel_data.z])
+        
+        # 积分 1: 速度 V = V_old + a * dt
+        # 这一步已经包含了巨大的漂移。
+        self._current_vel += a * dt
+
+        # 积分 2: 位置 P = P_old + V_new * dt
+        # 这一步引入了二次方漂移。
+        self._current_xyz += self._current_vel * dt
+    
+    def callback(self, frame):
+        ts = time.time() * 1000 
+        if not self._collect_streaming_data:
+            return
+        
         if frame.is_frameset() and self._image:
             frameset = frame.as_frameset()
-            color_f = frameset.get_color_frame()
-            depth_f = frameset.get_depth_frame()
+            f_left = frameset.get_infrared_frame(1)
+            f_right = frameset.get_infrared_frame(2)
 
-            if not color_f or not depth_f:
-                return
-
-            color = np.asanyarray(color_f.get_data())
-            depth = np.asanyarray(depth_f.get_data())
-
-            with self.image_streaming_mutex:
-                self.image_streaming_data["left"].append(color)
-                self.image_streaming_data["right"].append(depth)
+            left_data = np.asanyarray(f_left.get_data(), dtype=np.uint8)
+            right_data = np.asanyarray(f_right.get_data(), dtype=np.uint8)
+            self.image_streaming_mutex.acquire()
+            if len(self.image_streaming_data["timestamp_ms"]) != 0 and ts == self.image_streaming_data["timestamp_ms"][-1]:
+                pass
+            else:
+                self.image_streaming_data["left"].append(left_data.copy())
+                self.image_streaming_data["right"].append(right_data.copy())
                 self.image_streaming_data["timestamp_ms"].append(ts)
+            self.image_streaming_mutex.release()
 
-            # 处理 VO
-            with self._vio_lock:
-                if self.vio_update:
-                    xyz, quat = self.vio_update(color, depth, ts)
-                    self._pose_world = self.raw2pose(xyz, quat)
-                else:
-                    self._builtin_vo(color, depth)
-
-                pose = self._pose_world
-                xyz = pose[:3, 3]
-                quat = Rot.from_matrix(pose[:3, :3]).as_quat()
-
-            with self.pose_streaming_mutex:
+        if frame.is_motion_frame():
+            # print("motion_data")
+            motion_frame = frame.as_motion_frame()
+            motion_data = motion_frame.get_motion_data()
+            motion_profile = frame.get_profile()
+            # print(_motion_frame)
+            # print(motion_profile.stream_type())
+            if motion_profile.stream_type() == rs.stream.gyro:
+                # print("gyro")
+                self._process_gyro(frame)
+            elif motion_profile.stream_type() == rs.stream.accel:
+                self._process_accel(frame)
+            quat =  np.array(self._current_quat.copy())
+            xyz = np.array(self._current_xyz.copy())
+            self.pose_streaming_mutex.acquire()
+            if len(self.pose_streaming_data["timestamp_ms"]) != 0 and ts == self.pose_streaming_data["timestamp_ms"][-1]:
+                pass
+            else:
                 self.pose_streaming_data["xyz"].append(xyz)
                 self.pose_streaming_data["quat"].append(quat)
                 self.pose_streaming_data["timestamp_ms"].append(ts)
-
-    # -----------------------------------------------------------
-    # 简单 ORB+Depth VO
-    # -----------------------------------------------------------
-    def _builtin_vo(self, color, depth):
-        if self._prev_color is None:
-            self._prev_color = color
-            self._prev_depth = depth
-            return
-
-        if self._K is None:
-            return
-
-        fx, fy, cx, cy = self._K
-
-        orb = cv2.ORB_create(2000)
-        kp1, d1 = orb.detectAndCompute(self._prev_color, None)
-        kp2, d2 = orb.detectAndCompute(color, None)
-        if d1 is None or d2 is None:
-            self._prev_color = color
-            self._prev_depth = depth
-            return
-
-        bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-        matches = bf.match(d1, d2)
-        matches = sorted(matches, key=lambda x: x.distance)[:500]
-
-        pts1 = []
-        pts2 = []
-        for m in matches:
-            u1, v1 = kp1[m.queryIdx].pt
-            u2, v2 = kp2[m.trainIdx].pt
-            u1, v1 = int(u1), int(v1)
-            u2, v2 = int(u2), int(v2)
-            if u1 < 0 or v1 < 0 or u2 < 0 or v2 < 0:
-                continue
-            if u1 >= depth.shape[1] or u2 >= depth.shape[1]:
-                continue
-            if v1 >= depth.shape[0] or v2 >= depth.shape[0]:
-                continue
-            z1 = float(self._prev_depth[v1, u1]) * 0.001
-            z2 = float(depth[v2, u2]) * 0.001
-            if z1 < 0.2 or z2 < 0.2:
-                continue
-            X1 = np.array([(u1 - cx) * z1 / fx, (v1 - cy) * z1 / fy, z1])
-            X2 = np.array([(u2 - cx) * z2 / fx, (v2 - cy) * z2 / fy, z2])
-            pts1.append(X1)
-            pts2.append(X2)
-
-        if len(pts1) < 6:
-            self._prev_color = color
-            self._prev_depth = depth
-            return
-
-        P = np.stack(pts1, axis=0).T
-        Q = np.stack(pts2, axis=0).T
-        R, t = self._umeyama(P, Q)
-
-        T = np.eye(4)
-        T[:3, :3] = R
-        T[:3, 3] = t
-
-        self._pose_world = self._pose_world @ np.linalg.inv(T)
-
-        self._prev_color = color
-        self._prev_depth = depth
-
+            self.pose_streaming_mutex.release()
+    
     @staticmethod
-    def _umeyama(P, Q):
-        n = P.shape[1]
-        muP = np.mean(P, axis=1, keepdims=True)
-        muQ = np.mean(Q, axis=1, keepdims=True)
-        X = P - muP
-        Y = Q - muQ
-        S = X @ Y.T / n
-        U, D, Vt = np.linalg.svd(S)
-        R = U @ np.diag([1, 1, np.linalg.det(U @ Vt)]) @ Vt
-        t = (muQ - R @ muP).reshape(3)
-        return R, t
+    def raw2pose(xyz:np.ndarray, quat:np.ndarray) -> np.ndarray:
+        # T265 的静态方法保持不变
+        pose_4x4 = np.eye(4)
+        pose_4x4[:3, :3] = Rot.from_quat(quat).as_matrix()
+        pose_4x4[:3, 3] = xyz
+        return pose_4x4
 
-    @staticmethod
-    def raw2pose(xyz, quat):
-        T = np.eye(4)
-        T[:3, :3] = Rot.from_quat(quat).as_matrix()
-        T[:3, 3] = xyz
-        return T
+    def __del__(self) -> None:
+        try:
+            self.pipeline.stop()
+        except:
+            pass
 
 
-# -----------------------------------------------------------
-# Demo
-# -----------------------------------------------------------
 if __name__ == "__main__":
-    cam = D455()
-    cam.start_streaming()
-    print("Running D455... Press Ctrl-C to exit.")
-
+    camera = D455(id=None, image=True, name='D455')
+    
     try:
+        camera.start_streaming(callback=None)
+
+        i = 0
         while True:
-            time.sleep(0.05)
-            color, depth, xyz, quat = cam.get()
-            if color is not None:
-                cv2.imshow("color", color)
-            if depth is not None:
-                dvis = depth.astype(np.float32)
-                dvis = (dvis / (np.max(dvis) + 1e-6) * 255).astype(np.uint8)
-                cv2.imshow("depth", dvis)
+            # 持续打印位姿，可以看到 XYZ 在快速变化
+            print(f"Frame: {i:04d}", end='\r')
+            
+            left, right, xyz, quat = camera.get()
 
-            print("xyz:", xyz, "quat:", quat)
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            # 打印信息：XYZ 现在会快速漂移！
+            print(f"XYZ (m): [{xyz[0]:.2f}, {xyz[1]:.2f}, {xyz[2]:.2f}] | QUAT: [{quat[0]:.2f}, {quat[1]:.2f}, {quat[2]:.2f}, {quat[3]:.2f}]", end='\r') 
+            
+            if left is not None and right is not None:
+                cv2.imshow('left', left)
+                cv2.imshow('right', right)
+            
+            key = cv2.waitKey(1)
+            
+            if key == 27: # ESC 退出
                 break
-    except KeyboardInterrupt:
-        pass
-
-    data = cam.stop_streaming()
-    print("Stopped, collected frames:", len(data["image"]["timestamp_ms"]))
+            
+            i += 1
+            
+    except Exception as e:
+        print(f"\nAn error occurred: {e}")
+    finally:
+        # 退出后，询问是否保存数据
+        cv2.destroyAllWindows()
+        cmd = input("\n\nStreaming stopped. Whether save? (y/n): ") 
+        
+        data = None
+        if cmd == 'y':
+            data = camera.stop_streaming()
+            if data:
+                save_path = f"./data_d455_double_integration_{int(time.time())}"
+                print(f"Saving data to {save_path}...")
+                camera.save_streaming(save_path, data)
+                print("Saved.")
+        else:
+            camera.stop_streaming()

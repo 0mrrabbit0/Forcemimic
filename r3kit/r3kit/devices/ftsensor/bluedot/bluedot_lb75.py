@@ -156,7 +156,7 @@ class BlueDotLB75(FTSensorBase):
                 # optional init write (some sensors require writing to a register to enable streaming)
                 if write_init_register is not None:
                     addr, val = write_init_register
-                    rr = self.client.write_register(addr, val, slave=self.slave_id)
+                    rr = self.client.write_register(addr, val)
                     # don't fail on write error here; just warn
                     if hasattr(rr, "isError") and rr.isError():
                         print("[BlueDotLB75] warning: init write failed:", rr)
@@ -202,7 +202,7 @@ class BlueDotLB75(FTSensorBase):
             raise RuntimeError("Not connected to sensor")
 
         try:
-            resp = self.client.read_holding_registers(address=start_addr, count=count, slave=self.slave_id)
+            resp = self.client.read_holding_registers(address=start_addr, count=count)
             if resp is None or hasattr(resp, "isError") and resp.isError():
                 # handle None or error response
                 return None
@@ -494,6 +494,29 @@ class BlueDotLB75(FTSensorBase):
         print(f"Fx: {f[0]:8.4f}  Fy: {f[1]:8.4f}  Fz: {f[2]:8.4f}")
         print(f"Mx: {f[3]:8.4f}  My: {f[4]:8.4f}  Mz: {f[5]:8.4f}")
         print("=" * 50)
+    
+    def get_mean_data(self, n: int = 1, name: str = 'ft') -> Optional[np.ndarray]:
+        """
+        Read n samples sequentially and return the mean of the specified data ('ft').
+        This is a blocking read operation.
+        """
+        # 使用已有的 _read 方法获取 n 帧数据
+        data = self._read(n=n) 
+        
+        # 检查返回的数据是否有效
+        if data is None or name not in data or data[name].size == 0:
+            return None
+        
+        # 确保数据是 (N, 6) 的 NumPy 数组
+        ft_array = data[name]
+        
+        # 返回平均值 (沿第一轴 N 取平均)
+        if ft_array.ndim == 2 and ft_array.shape[0] > 0:
+            return np.mean(ft_array, axis=0)
+        elif ft_array.ndim == 1:
+            return ft_array # 如果只有一帧 (N=1), 直接返回该帧
+        else:
+            return None # 数据格式异常
 
 
 # -------------------------

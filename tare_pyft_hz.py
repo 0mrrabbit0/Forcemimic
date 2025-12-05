@@ -6,13 +6,10 @@ from pynput import keyboard
 import numpy as np
 import open3d as o3d
 
-# from r3kit.devices.camera.realsense.d455 import D455
 from r3kit.devices.camera.realsense.d455 import D455
-# from r3kit.devices.ftsensor.ati.pyati import PyATI as Pyft
 from r3kit.devices.ftsensor.bluedot.bluedot_lb75 import BlueDotLB75 as Bdft
 from r3kit.algos.tare.linear import LinearMFTarer, LinearFTarer, LinearCTTarer
 from configs.pose_hz import *
-
 
 def config_parse() -> configargparse.Namespace:
     parser = configargparse.ArgumentParser()
@@ -22,9 +19,6 @@ def config_parse() -> configargparse.Namespace:
     parser.add_argument('--d455_id', type=str)
     parser.add_argument('--bdft_id', type=str)
     parser.add_argument('--bdft_port', type=int)
-    parser.add_argument('--t265_id', type=str)
-    parser.add_argument('--pyft_id', type=str)
-    parser.add_argument('--pyft_port', type=int)
 
     args = parser.parse_args()
     return args
@@ -65,7 +59,6 @@ def main(args):
         # start streaming
         stop_start = input('Press enter to stop mounting D455 and start streaming')
         if stop_start != '':
-            # del d455, bdft
             del d455, bdft
             return
         print("Stop mounting D455 and start streaming")
@@ -170,7 +163,8 @@ def main(args):
     geometries = []
     base_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1, origin=[0, 0, 0])
     geometries.append(base_frame)
-    for bdft_pose in bdft_poses[::(len(bdft_poses) // 200)]:
+    print(len(bdft_poses))
+    for bdft_pose in bdft_poses[::(len(bdft_poses) // 10)]:
         bdft_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.02, origin=[0, 0, 0])
         bdft_frame.transform(bdft_pose)
         geometries.append(bdft_frame)

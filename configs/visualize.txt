@@ -1,2 +1,2 @@
-data_path = ./peel_data/01
+data_path = ./peel_data/20
 fps = 30

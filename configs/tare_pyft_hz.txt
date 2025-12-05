@@ -1,0 +1,4 @@
+save_path = ./pre_peel_data/20240830
+bdft_id = 192.168.0.20
+bdft_port = 502
+d455_id = 333422303302

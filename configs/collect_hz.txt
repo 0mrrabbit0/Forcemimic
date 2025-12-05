@@ -1,0 +1,9 @@
+save_path = ./peel_data/20
+l515_id = f0172289
+d415_id = 323522061547
+d455_id = 333422303302
+bdft_id = 192.168.0.20
+bdft_port = 502
+bdft_tare_path = ./pre_peel_data/20240830
+angler_id = /dev/ttyUSB0
+angler_index = 2
