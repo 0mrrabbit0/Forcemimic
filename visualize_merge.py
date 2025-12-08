@@ -44,16 +44,16 @@ def main(args):
             print(demo_attributes)
             num_samples = demo_attributes['num_samples']
 
-            l515_pc_xyzs_l515 = demo_group['l515_pc_xyzs_l515'][:].astype(np.float32)
-            l515_pc_rgbs = demo_group['l515_pc_rgbs'][:].astype(np.float32)
-            gripper_xyzs_l515 = demo_group['gripper_xyzs_l515'][:].astype(np.float32)
-            gripper_quats_l515 = demo_group['gripper_quats_l515'][:].astype(np.float32)
-            pyft_xyzs_l515 = demo_group['pyft_xyzs_l515'][:].astype(np.float32)
-            pyft_quats_l515 = demo_group['pyft_quats_l515'][:].astype(np.float32)
-            pyft_fs = demo_group['pyft_fs'][:].astype(np.float32)
-            pyft_ts = demo_group['pyft_ts'][:].astype(np.float32)
+            d415_pc_xyzs_d415 = demo_group['d415_pc_xyzs_d415'][:].astype(np.float32)
+            d415_pc_rgbs = demo_group['d415_pc_rgbs'][:].astype(np.float32)
+            gripper_xyzs_d415 = demo_group['gripper_xyzs_d415'][:].astype(np.float32)
+            gripper_quats_d415 = demo_group['gripper_quats_d415'][:].astype(np.float32)
+            bdft_xyzs_d415 = demo_group['bdft_xyzs_d415'][:].astype(np.float32)
+            bdft_quats_d415 = demo_group['bdft_quats_d415'][:].astype(np.float32)
+            bdft_fs = demo_group['bdft_fs'][:].astype(np.float32)
+            bdft_ts = demo_group['bdft_ts'][:].astype(np.float32)
             angler_widths = demo_group['angler_widths'][:].astype(np.float32)
-            len_seq = l515_pc_xyzs_l515.shape[0]
+            len_seq = d415_pc_xyzs_d415.shape[0]
             print(len_seq)
             o_idxs = demo_group['o'][:].astype(int)
             a_idxs = demo_group['a'][:].astype(int)
@@ -72,70 +72,70 @@ def main(args):
                     a_idx = a_idxs[sample_idx]
                     
                     for current_idx in o_idx:
-                        # add l515 elements
-                        l515_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
-                        visualizer.add_geometry(l515_frame)
-                        l515_pc_xyz_l515, l515_pc_rgb = l515_pc_xyzs_l515[current_idx], l515_pc_rgbs[current_idx]
-                        l515_pcd = o3d.geometry.PointCloud()
-                        l515_pcd.points = o3d.utility.Vector3dVector(l515_pc_xyz_l515)
-                        l515_pcd.colors = o3d.utility.Vector3dVector(l515_pc_rgb)
-                        visualizer.add_geometry(l515_pcd)
+                        # add d415 elements
+                        d415_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
+                        visualizer.add_geometry(d415_frame)
+                        d415_pc_xyz_d415, d415_pc_rgb = d415_pc_xyzs_d415[current_idx], d415_pc_rgbs[current_idx]
+                        d415_pcd = o3d.geometry.PointCloud()
+                        d415_pcd.points = o3d.utility.Vector3dVector(d415_pc_xyz_d415)
+                        d415_pcd.colors = o3d.utility.Vector3dVector(d415_pc_rgb)
+                        visualizer.add_geometry(d415_pcd)
                         # add gripper elements
-                        gripper_xyz_l515, gripper_quat_l515 = gripper_xyzs_l515[current_idx], gripper_quats_l515[current_idx]
-                        gripper_pose_l515 = xyzquat2mat(gripper_xyz_l515, gripper_quat_l515)
+                        gripper_xyz_d415, gripper_quat_d415 = gripper_xyzs_d415[current_idx], gripper_quats_d415[current_idx]
+                        gripper_pose_d415 = xyzquat2mat(gripper_xyz_d415, gripper_quat_d415)
                         gripper_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
-                        gripper_frame.transform(gripper_pose_l515)
+                        gripper_frame.transform(gripper_pose_d415)
                         visualizer.add_geometry(gripper_frame)
                         gripper = o3d.io.read_triangle_mesh(os.path.join("objs", "gripper.obj"))
-                        gripper.transform(gripper_pose_l515)
+                        gripper.transform(gripper_pose_d415)
                         visualizer.add_geometry(gripper)
-                        # add pyft elements
-                        pyft_xyz_l515, pyft_quat_l515 = pyft_xyzs_l515[current_idx], pyft_quats_l515[current_idx]
-                        pyft_pose_l515 = xyzquat2mat(pyft_xyz_l515, pyft_quat_l515)
-                        pyft_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
-                        pyft_frame.transform(pyft_pose_l515)
-                        visualizer.add_geometry(pyft_frame)
+                        # add bdft elements
+                        bdft_xyz_d415, bdft_quat_d415 = bdft_xyzs_d415[current_idx], bdft_quats_d415[current_idx]
+                        bdft_pose_d415 = xyzquat2mat(bdft_xyz_d415, bdft_quat_d415)
+                        bdft_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
+                        bdft_frame.transform(bdft_pose_d415)
+                        visualizer.add_geometry(bdft_frame)
                         if ft_coord:
-                            pyft_f_l515, pyft_t_l515 = pyft_fs[current_idx], pyft_ts[current_idx]
+                            bdft_f_d415, bdft_t_d415 = bdft_fs[current_idx], bdft_ts[current_idx]
                         else:
-                            pyft_f_pyft, pyft_t_pyft = pyft_fs[current_idx], pyft_ts[current_idx]
-                            pyft_f_l515 = pyft_pose_l515[:3, :3] @ pyft_f_pyft
-                            pyft_t_l515 = pyft_pose_l515[:3, :3] @ pyft_t_pyft
-                        pyft_f_value = np.linalg.norm(pyft_f_l515)
-                        pyft_f_rotation_l515 = rotation_vec2mat(pyft_f_l515 / pyft_f_value)
-                        pyft_f_translation_l515 = pyft_pose_l515[:3, 3]
-                        pyft_t_value = np.linalg.norm(pyft_t_l515)
-                        pyft_t_rotation_l515 = rotation_vec2mat(pyft_t_l515 / pyft_t_value)
-                        pyft_t_translation_l515 = pyft_pose_l515[:3, 3]
-                        pyft_f_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.04 * 0.025, cone_radius=0.04 * 0.05, cylinder_height=0.04 * 0.875, cone_height=0.04 * 0.125, 
+                            bdft_f_bdft, bdft_t_bdft = bdft_fs[current_idx], bdft_ts[current_idx]
+                            bdft_f_d415 = bdft_pose_d415[:3, :3] @ bdft_f_bdft
+                            bdft_t_d415 = bdft_pose_d415[:3, :3] @ bdft_t_bdft
+                        bdft_f_value = np.linalg.norm(bdft_f_d415)
+                        bdft_f_rotation_d415 = rotation_vec2mat(bdft_f_d415 / bdft_f_value)
+                        bdft_f_translation_d415 = bdft_pose_d415[:3, 3]
+                        bdft_t_value = np.linalg.norm(bdft_t_d415)
+                        bdft_t_rotation_d415 = rotation_vec2mat(bdft_t_d415 / bdft_t_value)
+                        bdft_t_translation_d415 = bdft_pose_d415[:3, 3]
+                        bdft_f_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.04 * 0.025, cone_radius=0.04 * 0.05, cylinder_height=0.04 * 0.875, cone_height=0.04 * 0.125, 
                                                                                 resolution=20, cylinder_split=4, cone_split=1)
-                        pyft_f_arrow.paint_uniform_color([1., 1., 0.])
-                        pyft_f_arrow.scale(pyft_f_value, np.array([[0], [0], [0]]))
-                        pyft_f_arrow.rotate(pyft_f_rotation_l515, np.array([[0], [0], [0]]))
-                        pyft_f_arrow.translate(pyft_f_translation_l515)
-                        visualizer.add_geometry(pyft_f_arrow)
-                        pyft_t_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.4 * 0.025, cone_radius=0.4 * 0.05, cylinder_height=0.4 * 0.875, cone_height=0.4 * 0.125, 
+                        bdft_f_arrow.paint_uniform_color([1., 1., 0.])
+                        bdft_f_arrow.scale(bdft_f_value, np.array([[0], [0], [0]]))
+                        bdft_f_arrow.rotate(bdft_f_rotation_d415, np.array([[0], [0], [0]]))
+                        bdft_f_arrow.translate(bdft_f_translation_d415)
+                        visualizer.add_geometry(bdft_f_arrow)
+                        bdft_t_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.4 * 0.025, cone_radius=0.4 * 0.05, cylinder_height=0.4 * 0.875, cone_height=0.4 * 0.125, 
                                                                                 resolution=20, cylinder_split=4, cone_split=1)
-                        pyft_t_arrow.paint_uniform_color([0., 1., 1.])
-                        pyft_t_arrow.scale(pyft_t_value, np.array([[0], [0], [0]]))
-                        pyft_t_arrow.rotate(pyft_t_rotation_l515, np.array([[0], [0], [0]]))
-                        pyft_t_arrow.translate(pyft_t_translation_l515)
-                        visualizer.add_geometry(pyft_t_arrow)
-                        pyft_peeler = o3d.io.read_triangle_mesh(os.path.join("objs", "peeler.obj"))
-                        pyft_peeler.transform(pyft_pose_l515)
-                        visualizer.add_geometry(pyft_peeler)
+                        bdft_t_arrow.paint_uniform_color([0., 1., 1.])
+                        bdft_t_arrow.scale(bdft_t_value, np.array([[0], [0], [0]]))
+                        bdft_t_arrow.rotate(bdft_t_rotation_d415, np.array([[0], [0], [0]]))
+                        bdft_t_arrow.translate(bdft_t_translation_d415)
+                        visualizer.add_geometry(bdft_t_arrow)
+                        bdft_peeler = o3d.io.read_triangle_mesh(os.path.join("objs", "peeler.obj"))
+                        bdft_peeler.transform(bdft_pose_d415)
+                        visualizer.add_geometry(bdft_peeler)
                         # add angler elements
                         angler_width = angler_widths[current_idx]
                         angler_right_finger = o3d.io.read_triangle_mesh(os.path.join("objs", "right_finger.obj"))
                         angler_left_finger = o3d.io.read_triangle_mesh(os.path.join("objs", "left_finger.obj"))
                         angler_finger_pose_gripper = np.identity(4)
                         angler_finger_pose_gripper[0, 3] = angler_width / 2.
-                        gripper_right_finger_pose_l515 = gripper_pose_l515 @ angler_finger_pose_gripper
-                        angler_right_finger.transform(gripper_right_finger_pose_l515)
+                        gripper_right_finger_pose_d415 = gripper_pose_d415 @ angler_finger_pose_gripper
+                        angler_right_finger.transform(gripper_right_finger_pose_d415)
                         visualizer.add_geometry(angler_right_finger)
                         angler_finger_pose_gripper[0, 3] = -angler_width / 2.
-                        gripper_left_finger_pose_l515 = gripper_pose_l515 @ angler_finger_pose_gripper
-                        angler_left_finger.transform(gripper_left_finger_pose_l515)
+                        gripper_left_finger_pose_d415 = gripper_pose_d415 @ angler_finger_pose_gripper
+                        angler_left_finger.transform(gripper_left_finger_pose_d415)
                         visualizer.add_geometry(angler_left_finger)
 
                     # visualizer setup
@@ -151,78 +151,78 @@ def main(args):
                     # visualize loop
                     for current_idx in a_idx:
                         # update gripper elements
-                        gripper_xyz_l515, gripper_quat_l515 = gripper_xyzs_l515[current_idx], gripper_quats_l515[current_idx]
-                        gripper_pose_l515_last = gripper_pose_l515.copy()
-                        gripper_pose_l515 = xyzquat2mat(gripper_xyz_l515, gripper_quat_l515)
-                        gripper_frame.transform(np.linalg.inv(gripper_pose_l515_last))
-                        gripper_frame.transform(gripper_pose_l515)
+                        gripper_xyz_d415, gripper_quat_d415 = gripper_xyzs_d415[current_idx], gripper_quats_d415[current_idx]
+                        gripper_pose_d415_last = gripper_pose_d415.copy()
+                        gripper_pose_d415 = xyzquat2mat(gripper_xyz_d415, gripper_quat_d415)
+                        gripper_frame.transform(np.linalg.inv(gripper_pose_d415_last))
+                        gripper_frame.transform(gripper_pose_d415)
                         visualizer.update_geometry(gripper_frame)
-                        gripper.transform(np.linalg.inv(gripper_pose_l515_last))
-                        gripper.transform(gripper_pose_l515)
-                        gripper_delta_pose = np.dot(np.linalg.inv(gripper_pose_l515_last), gripper_pose_l515)
+                        gripper.transform(np.linalg.inv(gripper_pose_d415_last))
+                        gripper.transform(gripper_pose_d415)
+                        gripper_delta_pose = np.dot(np.linalg.inv(gripper_pose_d415_last), gripper_pose_d415)
                         visualizer.update_geometry(gripper)
-                        # update pyft elements
-                        pyft_xyz_l515, pyft_quat_l515 = pyft_xyzs_l515[current_idx], pyft_quats_l515[current_idx]
-                        pyft_pose_l515_last = pyft_pose_l515.copy()
-                        pyft_pose_l515 = xyzquat2mat(pyft_xyz_l515, pyft_quat_l515)
-                        pyft_frame.transform(np.linalg.inv(pyft_pose_l515_last))
-                        pyft_frame.transform(pyft_pose_l515)
-                        pyft_delta_pose = np.dot(np.linalg.inv(pyft_pose_l515_last), pyft_pose_l515)
-                        visualizer.update_geometry(pyft_frame)
+                        # update bdft elements
+                        bdft_xyz_d415, bdft_quat_d415 = bdft_xyzs_d415[current_idx], bdft_quats_d415[current_idx]
+                        bdft_pose_d415_last = bdft_pose_d415.copy()
+                        bdft_pose_d415 = xyzquat2mat(bdft_xyz_d415, bdft_quat_d415)
+                        bdft_frame.transform(np.linalg.inv(bdft_pose_d415_last))
+                        bdft_frame.transform(bdft_pose_d415)
+                        bdft_delta_pose = np.dot(np.linalg.inv(bdft_pose_d415_last), bdft_pose_d415)
+                        visualizer.update_geometry(bdft_frame)
                         if ft_coord:
-                            pyft_f_l515_last, pyft_t_l515_last = pyft_f_l515.copy(), pyft_t_l515.copy()
-                            pyft_f_l515, pyft_t_l515 = pyft_fs[current_idx], pyft_ts[current_idx]
-                            pyft_delta_f, pyft_delta_t = pyft_f_l515 - pyft_f_l515_last, pyft_t_l515 - pyft_t_l515_last
+                            bdft_f_d415_last, bdft_t_d415_last = bdft_f_d415.copy(), bdft_t_d415.copy()
+                            bdft_f_d415, bdft_t_d415 = bdft_fs[current_idx], bdft_ts[current_idx]
+                            bdft_delta_f, bdft_delta_t = bdft_f_d415 - bdft_f_d415_last, bdft_t_d415 - bdft_t_d415_last
                         else:
-                            pyft_f_pyft_last, pyft_t_pyft_last = pyft_f_pyft.copy(), pyft_t_pyft.copy()
-                            pyft_f_pyft, pyft_t_pyft = pyft_fs[current_idx], pyft_ts[current_idx]
-                            pyft_delta_f, pyft_delta_t = pyft_f_pyft - pyft_f_pyft_last, pyft_t_pyft - pyft_t_pyft_last
-                            pyft_f_l515 = pyft_pose_l515[:3, :3] @ pyft_f_pyft
-                            pyft_t_l515 = pyft_pose_l515[:3, :3] @ pyft_t_pyft
-                        pyft_f_value_last = pyft_f_value.copy()
-                        pyft_f_value = np.linalg.norm(pyft_f_l515)
-                        pyft_f_rotation_l515_last = pyft_f_rotation_l515.copy()
-                        pyft_f_rotation_l515 = rotation_vec2mat(pyft_f_l515 / pyft_f_value)
-                        pyft_f_translation_l515_last = pyft_f_translation_l515.copy()
-                        pyft_f_translation_l515 = pyft_pose_l515[:3, 3]
-                        pyft_t_value_last = pyft_t_value.copy()
-                        pyft_t_value = np.linalg.norm(pyft_t_l515)
-                        pyft_t_rotation_l515_last = pyft_t_rotation_l515.copy()
-                        pyft_t_rotation_l515 = rotation_vec2mat(pyft_t_l515 / pyft_t_value)
-                        pyft_t_translation_l515_last = pyft_t_translation_l515.copy()
-                        pyft_t_translation_l515 = pyft_pose_l515[:3, 3]
-                        pyft_f_arrow.translate(-pyft_f_translation_l515_last)
-                        pyft_f_arrow.rotate(np.linalg.inv(pyft_f_rotation_l515_last), np.array([[0], [0], [0]]))
-                        pyft_f_arrow.scale(1/pyft_f_value_last, np.array([[0], [0], [0]]))
-                        pyft_f_arrow.scale(pyft_f_value, np.array([[0], [0], [0]]))
-                        pyft_f_arrow.rotate(pyft_f_rotation_l515, np.array([[0], [0], [0]]))
-                        pyft_f_arrow.translate(pyft_f_translation_l515)
-                        visualizer.update_geometry(pyft_f_arrow)
-                        pyft_t_arrow.translate(-pyft_t_translation_l515_last)
-                        pyft_t_arrow.rotate(np.linalg.inv(pyft_t_rotation_l515_last), np.array([[0], [0], [0]]))
-                        pyft_t_arrow.scale(1/pyft_t_value_last, np.array([[0], [0], [0]]))
-                        pyft_t_arrow.scale(pyft_t_value, np.array([[0], [0], [0]]))
-                        pyft_t_arrow.rotate(pyft_t_rotation_l515, np.array([[0], [0], [0]]))
-                        pyft_t_arrow.translate(pyft_t_translation_l515)
-                        visualizer.update_geometry(pyft_t_arrow)
-                        pyft_peeler.transform(np.linalg.inv(pyft_pose_l515_last))
-                        pyft_peeler.transform(pyft_pose_l515)
-                        visualizer.update_geometry(pyft_peeler)
+                            bdft_f_bdft_last, bdft_t_bdft_last = bdft_f_bdft.copy(), bdft_t_bdft.copy()
+                            bdft_f_bdft, bdft_t_bdft = bdft_fs[current_idx], bdft_ts[current_idx]
+                            bdft_delta_f, bdft_delta_t = bdft_f_bdft - bdft_f_bdft_last, bdft_t_bdft - bdft_t_bdft_last
+                            bdft_f_d415 = bdft_pose_d415[:3, :3] @ bdft_f_bdft
+                            bdft_t_d415 = bdft_pose_d415[:3, :3] @ bdft_t_bdft
+                        bdft_f_value_last = bdft_f_value.copy()
+                        bdft_f_value = np.linalg.norm(bdft_f_d415)
+                        bdft_f_rotation_d415_last = bdft_f_rotation_d415.copy()
+                        bdft_f_rotation_d415 = rotation_vec2mat(bdft_f_d415 / bdft_f_value)
+                        bdft_f_translation_d415_last = bdft_f_translation_d415.copy()
+                        bdft_f_translation_d415 = bdft_pose_d415[:3, 3]
+                        bdft_t_value_last = bdft_t_value.copy()
+                        bdft_t_value = np.linalg.norm(bdft_t_d415)
+                        bdft_t_rotation_d415_last = bdft_t_rotation_d415.copy()
+                        bdft_t_rotation_d415 = rotation_vec2mat(bdft_t_d415 / bdft_t_value)
+                        bdft_t_translation_d415_last = bdft_t_translation_d415.copy()
+                        bdft_t_translation_d415 = bdft_pose_d415[:3, 3]
+                        bdft_f_arrow.translate(-bdft_f_translation_d415_last)
+                        bdft_f_arrow.rotate(np.linalg.inv(bdft_f_rotation_d415_last), np.array([[0], [0], [0]]))
+                        bdft_f_arrow.scale(1/bdft_f_value_last, np.array([[0], [0], [0]]))
+                        bdft_f_arrow.scale(bdft_f_value, np.array([[0], [0], [0]]))
+                        bdft_f_arrow.rotate(bdft_f_rotation_d415, np.array([[0], [0], [0]]))
+                        bdft_f_arrow.translate(bdft_f_translation_d415)
+                        visualizer.update_geometry(bdft_f_arrow)
+                        bdft_t_arrow.translate(-bdft_t_translation_d415_last)
+                        bdft_t_arrow.rotate(np.linalg.inv(bdft_t_rotation_d415_last), np.array([[0], [0], [0]]))
+                        bdft_t_arrow.scale(1/bdft_t_value_last, np.array([[0], [0], [0]]))
+                        bdft_t_arrow.scale(bdft_t_value, np.array([[0], [0], [0]]))
+                        bdft_t_arrow.rotate(bdft_t_rotation_d415, np.array([[0], [0], [0]]))
+                        bdft_t_arrow.translate(bdft_t_translation_d415)
+                        visualizer.update_geometry(bdft_t_arrow)
+                        bdft_peeler.transform(np.linalg.inv(bdft_pose_d415_last))
+                        bdft_peeler.transform(bdft_pose_d415)
+                        visualizer.update_geometry(bdft_peeler)
                         # update angler elements
                         angler_width_last = angler_width.copy()
                         angler_width = angler_widths[current_idx]
                         angler_finger_pose_gripper = np.identity(4)
                         angler_finger_pose_gripper[0, 3] = angler_width / 2.
-                        gripper_right_finger_pose_l515_last = gripper_right_finger_pose_l515.copy()
-                        gripper_right_finger_pose_l515 = gripper_pose_l515 @ angler_finger_pose_gripper
-                        angler_right_finger.transform(np.linalg.inv(gripper_right_finger_pose_l515_last))
-                        angler_right_finger.transform(gripper_right_finger_pose_l515)
+                        gripper_right_finger_pose_d415_last = gripper_right_finger_pose_d415.copy()
+                        gripper_right_finger_pose_d415 = gripper_pose_d415 @ angler_finger_pose_gripper
+                        angler_right_finger.transform(np.linalg.inv(gripper_right_finger_pose_d415_last))
+                        angler_right_finger.transform(gripper_right_finger_pose_d415)
                         visualizer.update_geometry(angler_right_finger)
                         angler_finger_pose_gripper[0, 3] = -angler_width / 2.
-                        gripper_left_finger_pose_l515_last = gripper_left_finger_pose_l515.copy()
-                        gripper_left_finger_pose_l515 = gripper_pose_l515 @ angler_finger_pose_gripper
-                        angler_left_finger.transform(np.linalg.inv(gripper_left_finger_pose_l515_last))
-                        angler_left_finger.transform(gripper_left_finger_pose_l515)
+                        gripper_left_finger_pose_d415_last = gripper_left_finger_pose_d415.copy()
+                        gripper_left_finger_pose_d415 = gripper_pose_d415 @ angler_finger_pose_gripper
+                        angler_left_finger.transform(np.linalg.inv(gripper_left_finger_pose_d415_last))
+                        angler_left_finger.transform(gripper_left_finger_pose_d415)
                         visualizer.update_geometry(angler_left_finger)
 
                         # visualizer update
@@ -281,70 +281,70 @@ def main(args):
                     visualizer = o3d.visualization.Visualizer()
                     visualizer.create_window(width=1280, height=720, left=200, top=200, visible=True, window_name='data')
 
-                # add l515 elements
-                l515_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
-                visualizer.add_geometry(l515_frame)
-                l515_pc_xyz_l515, l515_pc_rgb = l515_pc_xyzs_l515[current_idx], l515_pc_rgbs[current_idx]
-                l515_pcd = o3d.geometry.PointCloud()
-                l515_pcd.points = o3d.utility.Vector3dVector(l515_pc_xyz_l515)
-                l515_pcd.colors = o3d.utility.Vector3dVector(l515_pc_rgb)
-                visualizer.add_geometry(l515_pcd)
+                # add d415 elements
+                d415_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
+                visualizer.add_geometry(d415_frame)
+                d415_pc_xyz_d415, d415_pc_rgb = d415_pc_xyzs_d415[current_idx], d415_pc_rgbs[current_idx]
+                d415_pcd = o3d.geometry.PointCloud()
+                d415_pcd.points = o3d.utility.Vector3dVector(d415_pc_xyz_d415)
+                d415_pcd.colors = o3d.utility.Vector3dVector(d415_pc_rgb)
+                visualizer.add_geometry(d415_pcd)
                 # add gripper elements
-                gripper_xyz_l515, gripper_quat_l515 = gripper_xyzs_l515[current_idx], gripper_quats_l515[current_idx]
-                gripper_pose_l515 = xyzquat2mat(gripper_xyz_l515, gripper_quat_l515)
+                gripper_xyz_d415, gripper_quat_d415 = gripper_xyzs_d415[current_idx], gripper_quats_d415[current_idx]
+                gripper_pose_d415 = xyzquat2mat(gripper_xyz_d415, gripper_quat_d415)
                 gripper_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
-                gripper_frame.transform(gripper_pose_l515)
+                gripper_frame.transform(gripper_pose_d415)
                 visualizer.add_geometry(gripper_frame)
                 gripper = o3d.io.read_triangle_mesh(os.path.join("objs", "gripper.obj"))
-                gripper.transform(gripper_pose_l515)
+                gripper.transform(gripper_pose_d415)
                 visualizer.add_geometry(gripper)
-                # add pyft elements
-                pyft_xyz_l515, pyft_quat_l515 = pyft_xyzs_l515[current_idx], pyft_quats_l515[current_idx]
-                pyft_pose_l515 = xyzquat2mat(pyft_xyz_l515, pyft_quat_l515)
-                pyft_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
-                pyft_frame.transform(pyft_pose_l515)
-                visualizer.add_geometry(pyft_frame)
+                # add bdft elements
+                bdft_xyz_d415, bdft_quat_d415 = bdft_xyzs_d415[current_idx], bdft_quats_d415[current_idx]
+                bdft_pose_d415 = xyzquat2mat(bdft_xyz_d415, bdft_quat_d415)
+                bdft_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
+                bdft_frame.transform(bdft_pose_d415)
+                visualizer.add_geometry(bdft_frame)
                 if ft_coord:
-                    pyft_f_l515, pyft_t_l515 = pyft_fs[current_idx], pyft_ts[current_idx]
+                    bdft_f_d415, bdft_t_d415 = bdft_fs[current_idx], bdft_ts[current_idx]
                 else:
-                    pyft_f_pyft, pyft_t_pyft = pyft_fs[current_idx], pyft_ts[current_idx]
-                    pyft_f_l515 = pyft_pose_l515[:3, :3] @ pyft_f_pyft
-                    pyft_t_l515 = pyft_pose_l515[:3, :3] @ pyft_t_pyft
-                pyft_f_value = np.linalg.norm(pyft_f_l515)
-                pyft_f_rotation_l515 = rotation_vec2mat(pyft_f_l515 / pyft_f_value)
-                pyft_f_translation_l515 = pyft_pose_l515[:3, 3]
-                pyft_t_value = np.linalg.norm(pyft_t_l515)
-                pyft_t_rotation_l515 = rotation_vec2mat(pyft_t_l515 / pyft_t_value)
-                pyft_t_translation_l515 = pyft_pose_l515[:3, 3]
-                pyft_f_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.04 * 0.025, cone_radius=0.04 * 0.05, cylinder_height=0.04 * 0.875, cone_height=0.04 * 0.125, 
+                    bdft_f_bdft, bdft_t_bdft = bdft_fs[current_idx], bdft_ts[current_idx]
+                    bdft_f_d415 = bdft_pose_d415[:3, :3] @ bdft_f_bdft
+                    bdft_t_d415 = bdft_pose_d415[:3, :3] @ bdft_t_bdft
+                bdft_f_value = np.linalg.norm(bdft_f_d415)
+                bdft_f_rotation_d415 = rotation_vec2mat(bdft_f_d415 / bdft_f_value)
+                bdft_f_translation_d415 = bdft_pose_d415[:3, 3]
+                bdft_t_value = np.linalg.norm(bdft_t_d415)
+                bdft_t_rotation_d415 = rotation_vec2mat(bdft_t_d415 / bdft_t_value)
+                bdft_t_translation_d415 = bdft_pose_d415[:3, 3]
+                bdft_f_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.04 * 0.025, cone_radius=0.04 * 0.05, cylinder_height=0.04 * 0.875, cone_height=0.04 * 0.125, 
                                                                         resolution=20, cylinder_split=4, cone_split=1)
-                pyft_f_arrow.paint_uniform_color([1., 1., 0.])
-                pyft_f_arrow.scale(pyft_f_value, np.array([[0], [0], [0]]))
-                pyft_f_arrow.rotate(pyft_f_rotation_l515, np.array([[0], [0], [0]]))
-                pyft_f_arrow.translate(pyft_f_translation_l515)
-                visualizer.add_geometry(pyft_f_arrow)
-                pyft_t_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.4 * 0.025, cone_radius=0.4 * 0.05, cylinder_height=0.4 * 0.875, cone_height=0.4 * 0.125, 
+                bdft_f_arrow.paint_uniform_color([1., 1., 0.])
+                bdft_f_arrow.scale(bdft_f_value, np.array([[0], [0], [0]]))
+                bdft_f_arrow.rotate(bdft_f_rotation_d415, np.array([[0], [0], [0]]))
+                bdft_f_arrow.translate(bdft_f_translation_d415)
+                visualizer.add_geometry(bdft_f_arrow)
+                bdft_t_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.4 * 0.025, cone_radius=0.4 * 0.05, cylinder_height=0.4 * 0.875, cone_height=0.4 * 0.125, 
                                                                         resolution=20, cylinder_split=4, cone_split=1)
-                pyft_t_arrow.paint_uniform_color([0., 1., 1.])
-                pyft_t_arrow.scale(pyft_t_value, np.array([[0], [0], [0]]))
-                pyft_t_arrow.rotate(pyft_t_rotation_l515, np.array([[0], [0], [0]]))
-                pyft_t_arrow.translate(pyft_t_translation_l515)
-                visualizer.add_geometry(pyft_t_arrow)
-                pyft_peeler = o3d.io.read_triangle_mesh(os.path.join("objs", "peeler.obj"))
-                pyft_peeler.transform(pyft_pose_l515)
-                visualizer.add_geometry(pyft_peeler)
+                bdft_t_arrow.paint_uniform_color([0., 1., 1.])
+                bdft_t_arrow.scale(bdft_t_value, np.array([[0], [0], [0]]))
+                bdft_t_arrow.rotate(bdft_t_rotation_d415, np.array([[0], [0], [0]]))
+                bdft_t_arrow.translate(bdft_t_translation_d415)
+                visualizer.add_geometry(bdft_t_arrow)
+                bdft_peeler = o3d.io.read_triangle_mesh(os.path.join("objs", "peeler.obj"))
+                bdft_peeler.transform(bdft_pose_d415)
+                visualizer.add_geometry(bdft_peeler)
                 # add angler elements
                 angler_width = angler_widths[current_idx]
                 angler_right_finger = o3d.io.read_triangle_mesh(os.path.join("objs", "right_finger.obj"))
                 angler_left_finger = o3d.io.read_triangle_mesh(os.path.join("objs", "left_finger.obj"))
                 angler_finger_pose_gripper = np.identity(4)
                 angler_finger_pose_gripper[0, 3] = angler_width / 2.
-                gripper_right_finger_pose_l515 = gripper_pose_l515 @ angler_finger_pose_gripper
-                angler_right_finger.transform(gripper_right_finger_pose_l515)
+                gripper_right_finger_pose_d415 = gripper_pose_d415 @ angler_finger_pose_gripper
+                angler_right_finger.transform(gripper_right_finger_pose_d415)
                 visualizer.add_geometry(angler_right_finger)
                 angler_finger_pose_gripper[0, 3] = -angler_width / 2.
-                gripper_left_finger_pose_l515 = gripper_pose_l515 @ angler_finger_pose_gripper
-                angler_left_finger.transform(gripper_left_finger_pose_l515)
+                gripper_left_finger_pose_d415 = gripper_pose_d415 @ angler_finger_pose_gripper
+                angler_left_finger.transform(gripper_left_finger_pose_d415)
                 visualizer.add_geometry(angler_left_finger)
 
                 # visualizer setup
@@ -358,87 +358,87 @@ def main(args):
                 view_control.convert_from_pinhole_camera_parameters(params, allow_arbitrary=True)
 
                 # visualize loop
-                gripper_xyz_deltas, gripper_quat_deltas, pyft_xyz_deltas, pyft_quat_deltas, pyft_f_deltas, pyft_t_deltas, angler_width_deltas = [], [], [], [], [], [], []
+                gripper_xyz_deltas, gripper_quat_deltas, bdft_xyz_deltas, bdft_quat_deltas, bdft_f_deltas, bdft_t_deltas, angler_width_deltas = [], [], [], [], [], [], []
                 with tqdm.tqdm(total=len_seq) as pbar:
                     while current_idx < len_seq:
-                        # update l515 elements
-                        l515_pc_xyz_l515, l515_pc_rgb = l515_pc_xyzs_l515[current_idx], l515_pc_rgbs[current_idx]
-                        l515_pcd.points = o3d.utility.Vector3dVector(l515_pc_xyz_l515)
-                        l515_pcd.colors = o3d.utility.Vector3dVector(l515_pc_rgb)
-                        visualizer.update_geometry(l515_pcd)
+                        # update d415 elements
+                        d415_pc_xyz_d415, d415_pc_rgb = d415_pc_xyzs_d415[current_idx], d415_pc_rgbs[current_idx]
+                        d415_pcd.points = o3d.utility.Vector3dVector(d415_pc_xyz_d415)
+                        d415_pcd.colors = o3d.utility.Vector3dVector(d415_pc_rgb)
+                        visualizer.update_geometry(d415_pcd)
                         # update gripper elements
-                        gripper_xyz_l515, gripper_quat_l515 = gripper_xyzs_l515[current_idx], gripper_quats_l515[current_idx]
-                        gripper_pose_l515_last = gripper_pose_l515.copy()
-                        gripper_pose_l515 = xyzquat2mat(gripper_xyz_l515, gripper_quat_l515)
-                        gripper_frame.transform(np.linalg.inv(gripper_pose_l515_last))
-                        gripper_frame.transform(gripper_pose_l515)
+                        gripper_xyz_d415, gripper_quat_d415 = gripper_xyzs_d415[current_idx], gripper_quats_d415[current_idx]
+                        gripper_pose_d415_last = gripper_pose_d415.copy()
+                        gripper_pose_d415 = xyzquat2mat(gripper_xyz_d415, gripper_quat_d415)
+                        gripper_frame.transform(np.linalg.inv(gripper_pose_d415_last))
+                        gripper_frame.transform(gripper_pose_d415)
                         visualizer.update_geometry(gripper_frame)
-                        gripper.transform(np.linalg.inv(gripper_pose_l515_last))
-                        gripper.transform(gripper_pose_l515)
-                        gripper_delta_pose = np.dot(np.linalg.inv(gripper_pose_l515_last), gripper_pose_l515)
+                        gripper.transform(np.linalg.inv(gripper_pose_d415_last))
+                        gripper.transform(gripper_pose_d415)
+                        gripper_delta_pose = np.dot(np.linalg.inv(gripper_pose_d415_last), gripper_pose_d415)
                         visualizer.update_geometry(gripper)
-                        # update pyft elements
-                        pyft_xyz_l515, pyft_quat_l515 = pyft_xyzs_l515[current_idx], pyft_quats_l515[current_idx]
-                        pyft_pose_l515_last = pyft_pose_l515.copy()
-                        pyft_pose_l515 = xyzquat2mat(pyft_xyz_l515, pyft_quat_l515)
-                        pyft_frame.transform(np.linalg.inv(pyft_pose_l515_last))
-                        pyft_frame.transform(pyft_pose_l515)
-                        pyft_delta_pose = np.dot(np.linalg.inv(pyft_pose_l515_last), pyft_pose_l515)
-                        visualizer.update_geometry(pyft_frame)
+                        # update bdft elements
+                        bdft_xyz_d415, bdft_quat_d415 = bdft_xyzs_d415[current_idx], bdft_quats_d415[current_idx]
+                        bdft_pose_d415_last = bdft_pose_d415.copy()
+                        bdft_pose_d415 = xyzquat2mat(bdft_xyz_d415, bdft_quat_d415)
+                        bdft_frame.transform(np.linalg.inv(bdft_pose_d415_last))
+                        bdft_frame.transform(bdft_pose_d415)
+                        bdft_delta_pose = np.dot(np.linalg.inv(bdft_pose_d415_last), bdft_pose_d415)
+                        visualizer.update_geometry(bdft_frame)
                         if ft_coord:
-                            pyft_f_l515_last, pyft_t_l515_last = pyft_f_l515.copy(), pyft_t_l515.copy()
-                            pyft_f_l515, pyft_t_l515 = pyft_fs[current_idx], pyft_ts[current_idx]
-                            pyft_delta_f, pyft_delta_t = pyft_f_l515 - pyft_f_l515_last, pyft_t_l515 - pyft_t_l515_last
+                            bdft_f_d415_last, bdft_t_d415_last = bdft_f_d415.copy(), bdft_t_d415.copy()
+                            bdft_f_d415, bdft_t_d415 = bdft_fs[current_idx], bdft_ts[current_idx]
+                            bdft_delta_f, bdft_delta_t = bdft_f_d415 - bdft_f_d415_last, bdft_t_d415 - bdft_t_d415_last
                         else:
-                            pyft_f_pyft_last, pyft_t_pyft_last = pyft_f_pyft.copy(), pyft_t_pyft.copy()
-                            pyft_f_pyft, pyft_t_pyft = pyft_fs[current_idx], pyft_ts[current_idx]
-                            pyft_delta_f, pyft_delta_t = pyft_f_pyft - pyft_f_pyft_last, pyft_t_pyft - pyft_t_pyft_last
-                            pyft_f_l515 = pyft_pose_l515[:3, :3] @ pyft_f_pyft
-                            pyft_t_l515 = pyft_pose_l515[:3, :3] @ pyft_t_pyft
-                        pyft_f_value_last = pyft_f_value.copy()
-                        pyft_f_value = np.linalg.norm(pyft_f_l515)
-                        pyft_f_rotation_l515_last = pyft_f_rotation_l515.copy()
-                        pyft_f_rotation_l515 = rotation_vec2mat(pyft_f_l515 / pyft_f_value)
-                        pyft_f_translation_l515_last = pyft_f_translation_l515.copy()
-                        pyft_f_translation_l515 = pyft_pose_l515[:3, 3]
-                        pyft_t_value_last = pyft_t_value.copy()
-                        pyft_t_value = np.linalg.norm(pyft_t_l515)
-                        pyft_t_rotation_l515_last = pyft_t_rotation_l515.copy()
-                        pyft_t_rotation_l515 = rotation_vec2mat(pyft_t_l515 / pyft_t_value)
-                        pyft_t_translation_l515_last = pyft_t_translation_l515.copy()
-                        pyft_t_translation_l515 = pyft_pose_l515[:3, 3]
-                        pyft_f_arrow.translate(-pyft_f_translation_l515_last)
-                        pyft_f_arrow.rotate(np.linalg.inv(pyft_f_rotation_l515_last), np.array([[0], [0], [0]]))
-                        pyft_f_arrow.scale(1/pyft_f_value_last, np.array([[0], [0], [0]]))
-                        pyft_f_arrow.scale(pyft_f_value, np.array([[0], [0], [0]]))
-                        pyft_f_arrow.rotate(pyft_f_rotation_l515, np.array([[0], [0], [0]]))
-                        pyft_f_arrow.translate(pyft_f_translation_l515)
-                        visualizer.update_geometry(pyft_f_arrow)
-                        pyft_t_arrow.translate(-pyft_t_translation_l515_last)
-                        pyft_t_arrow.rotate(np.linalg.inv(pyft_t_rotation_l515_last), np.array([[0], [0], [0]]))
-                        pyft_t_arrow.scale(1/pyft_t_value_last, np.array([[0], [0], [0]]))
-                        pyft_t_arrow.scale(pyft_t_value, np.array([[0], [0], [0]]))
-                        pyft_t_arrow.rotate(pyft_t_rotation_l515, np.array([[0], [0], [0]]))
-                        pyft_t_arrow.translate(pyft_t_translation_l515)
-                        visualizer.update_geometry(pyft_t_arrow)
-                        pyft_peeler.transform(np.linalg.inv(pyft_pose_l515_last))
-                        pyft_peeler.transform(pyft_pose_l515)
-                        visualizer.update_geometry(pyft_peeler)
+                            bdft_f_bdft_last, bdft_t_bdft_last = bdft_f_bdft.copy(), bdft_t_bdft.copy()
+                            bdft_f_bdft, bdft_t_bdft = bdft_fs[current_idx], bdft_ts[current_idx]
+                            bdft_delta_f, bdft_delta_t = bdft_f_bdft - bdft_f_bdft_last, bdft_t_bdft - bdft_t_bdft_last
+                            bdft_f_d415 = bdft_pose_d415[:3, :3] @ bdft_f_bdft
+                            bdft_t_d415 = bdft_pose_d415[:3, :3] @ bdft_t_bdft
+                        bdft_f_value_last = bdft_f_value.copy()
+                        bdft_f_value = np.linalg.norm(bdft_f_d415)
+                        bdft_f_rotation_d415_last = bdft_f_rotation_d415.copy()
+                        bdft_f_rotation_d415 = rotation_vec2mat(bdft_f_d415 / bdft_f_value)
+                        bdft_f_translation_d415_last = bdft_f_translation_d415.copy()
+                        bdft_f_translation_d415 = bdft_pose_d415[:3, 3]
+                        bdft_t_value_last = bdft_t_value.copy()
+                        bdft_t_value = np.linalg.norm(bdft_t_d415)
+                        bdft_t_rotation_d415_last = bdft_t_rotation_d415.copy()
+                        bdft_t_rotation_d415 = rotation_vec2mat(bdft_t_d415 / bdft_t_value)
+                        bdft_t_translation_d415_last = bdft_t_translation_d415.copy()
+                        bdft_t_translation_d415 = bdft_pose_d415[:3, 3]
+                        bdft_f_arrow.translate(-bdft_f_translation_d415_last)
+                        bdft_f_arrow.rotate(np.linalg.inv(bdft_f_rotation_d415_last), np.array([[0], [0], [0]]))
+                        bdft_f_arrow.scale(1/bdft_f_value_last, np.array([[0], [0], [0]]))
+                        bdft_f_arrow.scale(bdft_f_value, np.array([[0], [0], [0]]))
+                        bdft_f_arrow.rotate(bdft_f_rotation_d415, np.array([[0], [0], [0]]))
+                        bdft_f_arrow.translate(bdft_f_translation_d415)
+                        visualizer.update_geometry(bdft_f_arrow)
+                        bdft_t_arrow.translate(-bdft_t_translation_d415_last)
+                        bdft_t_arrow.rotate(np.linalg.inv(bdft_t_rotation_d415_last), np.array([[0], [0], [0]]))
+                        bdft_t_arrow.scale(1/bdft_t_value_last, np.array([[0], [0], [0]]))
+                        bdft_t_arrow.scale(bdft_t_value, np.array([[0], [0], [0]]))
+                        bdft_t_arrow.rotate(bdft_t_rotation_d415, np.array([[0], [0], [0]]))
+                        bdft_t_arrow.translate(bdft_t_translation_d415)
+                        visualizer.update_geometry(bdft_t_arrow)
+                        bdft_peeler.transform(np.linalg.inv(bdft_pose_d415_last))
+                        bdft_peeler.transform(bdft_pose_d415)
+                        visualizer.update_geometry(bdft_peeler)
                         # update angler elements
                         angler_width_last = angler_width.copy()
                         angler_width = angler_widths[current_idx]
                         angler_finger_pose_gripper = np.identity(4)
                         angler_finger_pose_gripper[0, 3] = angler_width / 2.
-                        gripper_right_finger_pose_l515_last = gripper_right_finger_pose_l515.copy()
-                        gripper_right_finger_pose_l515 = gripper_pose_l515 @ angler_finger_pose_gripper
-                        angler_right_finger.transform(np.linalg.inv(gripper_right_finger_pose_l515_last))
-                        angler_right_finger.transform(gripper_right_finger_pose_l515)
+                        gripper_right_finger_pose_d415_last = gripper_right_finger_pose_d415.copy()
+                        gripper_right_finger_pose_d415 = gripper_pose_d415 @ angler_finger_pose_gripper
+                        angler_right_finger.transform(np.linalg.inv(gripper_right_finger_pose_d415_last))
+                        angler_right_finger.transform(gripper_right_finger_pose_d415)
                         visualizer.update_geometry(angler_right_finger)
                         angler_finger_pose_gripper[0, 3] = -angler_width / 2.
-                        gripper_left_finger_pose_l515_last = gripper_left_finger_pose_l515.copy()
-                        gripper_left_finger_pose_l515 = gripper_pose_l515 @ angler_finger_pose_gripper
-                        angler_left_finger.transform(np.linalg.inv(gripper_left_finger_pose_l515_last))
-                        angler_left_finger.transform(gripper_left_finger_pose_l515)
+                        gripper_left_finger_pose_d415_last = gripper_left_finger_pose_d415.copy()
+                        gripper_left_finger_pose_d415 = gripper_pose_d415 @ angler_finger_pose_gripper
+                        angler_left_finger.transform(np.linalg.inv(gripper_left_finger_pose_d415_last))
+                        angler_left_finger.transform(gripper_left_finger_pose_d415)
                         visualizer.update_geometry(angler_left_finger)
 
                         # visualizer update
@@ -461,7 +461,7 @@ def main(args):
                                 backward = False
                             else:
                                 pass
-                        pbar.set_postfix(f=pyft_f_value, t=pyft_t_value)
+                        pbar.set_postfix(f=bdft_f_value, t=bdft_t_value)
 
                         # keyboard quit
                         if quit:
@@ -485,20 +485,20 @@ def main(args):
                         if current_idx != current_idx_last:
                             gripper_xyz_delta_mm = np.linalg.norm(gripper_delta_pose[:3, 3]) * 1000
                             gripper_quat_delta_deg = np.arccos(np.clip((np.trace(gripper_delta_pose[:3, :3]) - 1) / 2, -1, 1)) / np.pi * 180
-                            pyft_xyz_delta_mm = np.linalg.norm(pyft_delta_pose[:3, 3]) * 1000
-                            pyft_quat_delta_deg = np.arccos(np.clip((np.trace(pyft_delta_pose[:3, :3]) - 1) / 2, -1, 1)) / np.pi * 180
+                            bdft_xyz_delta_mm = np.linalg.norm(bdft_delta_pose[:3, 3]) * 1000
+                            bdft_quat_delta_deg = np.arccos(np.clip((np.trace(bdft_delta_pose[:3, :3]) - 1) / 2, -1, 1)) / np.pi * 180
                             angler_width_delta_mm = abs(angler_width - angler_width_last) * 1000
-                            pyft_f_delta_n = np.linalg.norm(pyft_delta_f)
-                            pyft_t_delta = np.linalg.norm(pyft_delta_t)
+                            bdft_f_delta_n = np.linalg.norm(bdft_delta_f)
+                            bdft_t_delta = np.linalg.norm(bdft_delta_t)
                             ### print(gripper_xyz_delta_mm)
 
                             gripper_xyz_deltas.append(gripper_xyz_delta_mm)
                             gripper_quat_deltas.append(gripper_quat_delta_deg)
-                            pyft_xyz_deltas.append(pyft_xyz_delta_mm)
-                            pyft_quat_deltas.append(pyft_quat_delta_deg)
+                            bdft_xyz_deltas.append(bdft_xyz_delta_mm)
+                            bdft_quat_deltas.append(bdft_quat_delta_deg)
                             angler_width_deltas.append(angler_width_delta_mm)
-                            pyft_f_deltas.append(pyft_f_delta_n)
-                            pyft_t_deltas.append(pyft_t_delta)
+                            bdft_f_deltas.append(bdft_f_delta_n)
+                            bdft_t_deltas.append(bdft_t_delta)
 
                 visualizer.clear_geometries()
                 listener.stop()

@@ -236,14 +236,10 @@ class D455(CameraBase):
             self.image_streaming_mutex.release()
 
         if frame.is_motion_frame():
-            # print("motion_data")
             motion_frame = frame.as_motion_frame()
             motion_data = motion_frame.get_motion_data()
             motion_profile = frame.get_profile()
-            # print(_motion_frame)
-            # print(motion_profile.stream_type())
             if motion_profile.stream_type() == rs.stream.gyro:
-                # print("gyro")
                 self._process_gyro(frame)
             elif motion_profile.stream_type() == rs.stream.accel:
                 self._process_accel(frame)

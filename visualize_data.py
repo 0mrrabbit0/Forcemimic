@@ -7,10 +7,14 @@ import open3d as o3d
 from pynput import keyboard
 import tqdm
 
-from r3kit.devices.camera.realsense.t265 import T265
-from r3kit.devices.camera.realsense.l515 import L515
-from r3kit.devices.ftsensor.ati.pyati import PyATI as Pyft
-from r3kit.devices.encoder.pdcd.angler import Angler
+# 第三视角摄像头
+from r3kit.devices.camera.realsense.d415 import D415
+# 第一视角摄像头
+from r3kit.devices.camera.realsense.d455 import D455
+# 力矩传感器
+from r3kit.devices.ftsensor.bluedot.bluedot_lb75 import BlueDotLB75 as Bdft
+# 角度编码器
+from r3kit.devices.encoder.pdcd.angler_spi import Angler
 from r3kit.utils.vis import rotation_vec2mat
 from configs.pose import *
 from utils.annotation import search_stage
@@ -40,39 +44,30 @@ def main(args):
     # load stage data
     with open(os.path.join(data_path, 'stage_timestamp_ms.json'), 'r') as f:
         stage_timestamp_ms = json.load(f)
-        t265_pose_start_timestamp_ms = stage_timestamp_ms['t265_pose_start_timestamp_ms']
-        t265_pose_end_timestamp_ms = stage_timestamp_ms['t265_pose_end_timestamp_ms']
+        d455_pose_start_timestamp_ms = stage_timestamp_ms['d455_pose_start_timestamp_ms']
+        d455_pose_end_timestamp_ms = stage_timestamp_ms['d455_pose_end_timestamp_ms']
         start_timestamp_ms = stage_timestamp_ms['start_timestamp_ms']
-    # load l515 data
-    l515_path = os.path.join(data_path, 'l515')
-    l515_intrinsics = np.loadtxt(os.path.join(l515_path, 'intrinsics.txt'))     # (4,), float64
-    l515_depth_scale = np.loadtxt(os.path.join(l515_path, 'depth_scale.txt')).item()
-    l515_timestamps = np.load(os.path.join(l515_path, 'timestamps.npy'))
-    ### l515_depth_img, l515_color_img loaded during iteration
-    # load t265r data
-    t265r_path = os.path.join(data_path, 't265r')
-    ### t265r_image_path = os.path.join(t265r_path, 'image')
-    ### t265r_image_timestamps = np.load(os.path.join(t265r_image_path, 'timestamps.npy'))
-    ### t265r_left_img, t265r_right_img loaded during iteration
-    t265r_pose_path = os.path.join(t265r_path, 'pose')
-    t265r_pose_timestamps = np.load(os.path.join(t265r_pose_path, 'timestamps.npy'))
-    t265r_xyzs = np.load(os.path.join(t265r_pose_path, 'xyz.npy'))
-    t265r_quats = np.load(os.path.join(t265r_pose_path, 'quat.npy'))
-    # load t265l data
-    t265l_path = os.path.join(data_path, 't265l')
-    ### t265l_image_path = os.path.join(t265l_path, 'image')
-    ### t265l_image_timestamps = np.load(os.path.join(t265l_image_path, 'timestamps.npy'))
-    ### t265l_left_img, t265l_right_img loaded during iteration
-    t265l_pose_path = os.path.join(t265l_path, 'pose')
-    t265l_pose_timestamps = np.load(os.path.join(t265l_pose_path, 'timestamps.npy'))
-    t265l_xyzs = np.load(os.path.join(t265l_pose_path, 'xyz.npy'))
-    t265l_quats = np.load(os.path.join(t265l_pose_path, 'quat.npy'))
-    # load pyft data
-    pyft_path = os.path.join(data_path, 'pyft')
-    with open(os.path.join(pyft_path, 'tare_pyft.json'), 'r') as f:
-        pyft_tare = json.load(f)
-    pyft_timestamps = np.load(os.path.join(pyft_path, 'timestamps.npy'))
-    pyft_fts = np.load(os.path.join(pyft_path, 'ft.npy'))
+    # load d415 data
+    d415_path = os.path.join(data_path, 'd415')
+    d415_intrinsics = np.loadtxt(os.path.join(d415_path, 'intrinsics.txt'))     # (4,), float64
+    d415_depth_scale = np.loadtxt(os.path.join(d415_path, 'depth_scale.txt')).item()
+    d415_timestamps = np.load(os.path.join(d415_path, 'timestamps.npy'))
+    ### d415_depth_img, d415_color_img loaded during iteration
+    # load d455 data
+    d455_path = os.path.join(data_path, 'd455')
+    ### d455_image_path = os.path.join(d455_path, 'image')
+    ### d455_image_timestamps = np.load(os.path.join(d455_image_path, 'timestamps.npy'))
+    ### d455_left_img, d455_right_img loaded during iteration
+    d455_pose_path = os.path.join(d455_path, 'pose')
+    d455_pose_timestamps = np.load(os.path.join(d455_pose_path, 'timestamps.npy'))
+    d455_xyzs = np.load(os.path.join(d455_pose_path, 'xyz.npy'))
+    d455_quats = np.load(os.path.join(d455_pose_path, 'quat.npy'))
+    # load bdft data
+    bdft_path = os.path.join(data_path, 'bdft')
+    with open(os.path.join(bdft_path, 'tare_bdft.json'), 'r') as f:
+        bdft_tare = json.load(f)
+    bdft_timestamps = np.load(os.path.join(bdft_path, 'timestamps.npy'))
+    bdft_fts = np.load(os.path.join(bdft_path, 'ft.npy'))
     # load angler data
     angler_path = os.path.join(data_path, 'angler')
     angler_timestamps = np.load(os.path.join(angler_path, 'timestamps.npy'))
@@ -84,36 +79,29 @@ def main(args):
         with open(annotation_path, 'r') as f:
             annotation = json.load(f)
 
-    # deal with t265 special prepare
-    t265r_initial_pose_mask = np.logical_and(t265r_pose_timestamps > t265_pose_start_timestamp_ms, t265r_pose_timestamps < t265_pose_end_timestamp_ms)
-    t265r_initial_xyz = np.median(t265r_xyzs[t265r_initial_pose_mask, :], axis=0)
-    t265r_initial_quat = np.median(t265r_quats[t265r_initial_pose_mask, :], axis=0)
-    t265r_initial_pose = T265.raw2pose(t265r_initial_xyz, t265r_initial_quat)       # c02w
-    t265l_initial_pose_mask = np.logical_and(t265l_pose_timestamps > t265_pose_start_timestamp_ms, t265l_pose_timestamps < t265_pose_end_timestamp_ms)
-    t265l_initial_xyz = np.median(t265l_xyzs[t265l_initial_pose_mask, :], axis=0)
-    t265l_initial_quat = np.median(t265l_quats[t265l_initial_pose_mask, :], axis=0)
-    t265l_initial_pose = T265.raw2pose(t265l_initial_xyz, t265l_initial_quat)       # c02w
+    # deal with d455 special prepare
+    d455_initial_pose_mask = np.logical_and(d455_pose_timestamps > d455_pose_start_timestamp_ms, d455_pose_timestamps < d455_pose_end_timestamp_ms)
+    d455_initial_xyz = np.median(d455_xyzs[d455_initial_pose_mask, :], axis=0)
+    d455_initial_quat = np.median(d455_quats[d455_initial_pose_mask, :], axis=0)
+    d455_initial_pose = D455.raw2pose(d455_initial_xyz, d455_initial_quat)       # c02w
 
     # deal with angler special prepare
     angler_angles = Angler.raw2angle(angler_angles)
     angler_angles[angler_angles < 0] = 0.0
     angler_widths = angler_angles * ANGLE_2_WIDTH
 
-    # process l515 variables
-    l515_current_idx = 0
-    l515_current_timestamp = l515_timestamps[l515_current_idx]
-    l515_start_timestamp = l515_timestamps[0]
-    l515_end_timestamp = l515_timestamps[-1]
-    # process t265r variables
-    ### t265r_image_current_idx = np.searchsorted(t265r_image_timestamps, l515_current_timestamp)
-    t265r_pose_current_idx = np.searchsorted(t265r_pose_timestamps, l515_current_timestamp)
-    # process t265l variables
-    ### t265l_image_current_idx = np.searchsorted(t265l_image_timestamps, l515_current_timestamp)
-    t265l_pose_current_idx = np.searchsorted(t265l_pose_timestamps, l515_current_timestamp)
-    # process pyft variables
-    pyft_current_idx = np.searchsorted(pyft_timestamps, l515_current_timestamp)
+    # process d415 variables
+    d415_current_idx = 0
+    d415_current_timestamp = d415_timestamps[d415_current_idx]
+    d415_start_timestamp = d415_timestamps[0]
+    d415_end_timestamp = d415_timestamps[-1]
+    # process d455 variables
+    ### d455_image_current_idx = np.searchsorted(d455_image_timestamps, d415_current_timestamp)
+    d455_pose_current_idx = np.searchsorted(d455_pose_timestamps, d415_current_timestamp)
+    # process bdft variables
+    bdft_current_idx = np.searchsorted(bdft_timestamps, d415_current_timestamp)
     # process angler variables
-    angler_current_idx = np.searchsorted(angler_timestamps, l515_current_timestamp)
+    angler_current_idx = np.searchsorted(angler_timestamps, d415_current_timestamp)
 
     # create keyboard listener
     quit = False
@@ -125,21 +113,18 @@ def main(args):
     speed = 1
     if not has_annotation:
         minus = False
-        t265r_xyz_t265rw_bias = np.array([0., 0., 0.])
-        t265l_xyz_t265lw_bias = np.array([0., 0., 0.])
-        stages = [{'timestamp_ms': l515_current_timestamp, 
-                   't265r_xyz_t265rw_bias': t265r_xyz_t265rw_bias.tolist(), 
-                   't265l_xyz_t265lw_bias': t265l_xyz_t265lw_bias.tolist(), 
+        d455_xyz_d455w_bias = np.array([0., 0., 0.])
+        stages = [{'timestamp_ms': d415_current_timestamp, 
+                   'd455_xyz_d455w_bias': d455_xyz_d455w_bias.tolist(), 
                    'stage': 'unrelated'}]
     else:
         stages = annotation
-        stage_idx = search_stage(l515_current_timestamp, stages)
+        stage_idx = search_stage(d415_current_timestamp, stages)
         stage = stages[stage_idx]
-        t265r_xyz_t265rw_bias = np.array(stage['t265r_xyz_t265rw_bias'])
-        t265l_xyz_t265lw_bias = np.array(stage['t265l_xyz_t265lw_bias'])
+        d455_xyz_d455w_bias = np.array(stage['d455_xyz_d455w_bias'])
     def _on_press(key):
         nonlocal quit, reset, pause, zero, forward, backward, speed
-        nonlocal current_timestamp, stages, minus, t265r_xyz_t265rw_bias, t265l_xyz_t265lw_bias
+        nonlocal current_timestamp, stages, minus, d455_xyz_d455w_bias
         if hasattr(key, 'char') and key.char == 'q':
             quit = True
             print("quit")
@@ -170,55 +155,39 @@ def main(args):
         if not has_annotation:
             if hasattr(key, 'char') and key.char == 'u':
                 stages.append({'timestamp_ms': current_timestamp, 
-                                't265r_xyz_t265rw_bias': t265r_xyz_t265rw_bias.tolist(), 
-                                't265l_xyz_t265lw_bias': t265l_xyz_t265lw_bias.tolist(), 
+                                'd455_xyz_d455w_bias': d455_xyz_d455w_bias.tolist(), 
                                 'stage': 'unrelated'})
                 print(f"unrelated from {current_timestamp}")
             if hasattr(key, 'char') and key.char == 'g':
                 stages.append({'timestamp_ms': current_timestamp, 
-                                't265r_xyz_t265rw_bias': t265r_xyz_t265rw_bias.tolist(), 
-                                't265l_xyz_t265lw_bias': t265l_xyz_t265lw_bias.tolist(), 
+                                'd455_xyz_d455w_bias': d455_xyz_d455w_bias.tolist(), 
                                 'stage': 'grasp'})
                 print(f"grasp from {current_timestamp}")
             if hasattr(key, 'char') and key.char == 's':
                 stages.append({'timestamp_ms': current_timestamp, 
-                                't265r_xyz_t265rw_bias': t265r_xyz_t265rw_bias.tolist(), 
-                                't265l_xyz_t265lw_bias': t265l_xyz_t265lw_bias.tolist(), 
+                                'd455_xyz_d455w_bias': d455_xyz_d455w_bias.tolist(), 
                                 'stage': 'shave'})
                 print(f"shave from {current_timestamp}")
             if hasattr(key, 'char') and key.char == 't':
                 stages.append({'timestamp_ms': current_timestamp, 
-                                't265r_xyz_t265rw_bias': t265r_xyz_t265rw_bias.tolist(), 
-                                't265l_xyz_t265lw_bias': t265l_xyz_t265lw_bias.tolist(), 
+                                'd455_xyz_d455w_bias': d455_xyz_d455w_bias.tolist(), 
                                 'stage': 'turn'})
                 print(f"turn from {current_timestamp}")
             if hasattr(key, 'char') and key.char == 'm':
                 minus = not minus
                 print("bias minus" if minus else "bias plus")
             if hasattr(key, 'char') and key.char == 'x':
-                t265r_xyz_t265rw_bias = t265r_xyz_t265rw_bias + np.array([0.005 if not minus else -0.005, 0., 0.])
+                d455_xyz_d455w_bias = d455_xyz_d455w_bias + np.array([0.005 if not minus else -0.005, 0., 0.])
                 stage_idx = search_stage(current_timestamp, stages)
-                stages[stage_idx]['t265r_xyz_t265rw_bias'] = t265r_xyz_t265rw_bias.tolist()
+                stages[stage_idx]['d455_xyz_d455w_bias'] = d455_xyz_d455w_bias.tolist()
             if hasattr(key, 'char') and key.char == 'y':
-                t265r_xyz_t265rw_bias = t265r_xyz_t265rw_bias + np.array([0., 0.005 if not minus else -0.005, 0.])
+                d455_xyz_d455w_bias = d455_xyz_d455w_bias + np.array([0., 0.005 if not minus else -0.005, 0.])
                 stage_idx = search_stage(current_timestamp, stages)
-                stages[stage_idx]['t265r_xyz_t265rw_bias'] = t265r_xyz_t265rw_bias.tolist()
+                stages[stage_idx]['d455_xyz_d455w_bias'] = d455_xyz_d455w_bias.tolist()
             if hasattr(key, 'char') and key.char == 'z':
-                t265r_xyz_t265rw_bias = t265r_xyz_t265rw_bias + np.array([0., 0., 0.005 if not minus else -0.005])
+                d455_xyz_d455w_bias = d455_xyz_d455w_bias + np.array([0., 0., 0.005 if not minus else -0.005])
                 stage_idx = search_stage(current_timestamp, stages)
-                stages[stage_idx]['t265r_xyz_t265rw_bias'] = t265r_xyz_t265rw_bias.tolist()
-            if hasattr(key, 'char') and key.char == 'a':
-                t265l_xyz_t265lw_bias = t265l_xyz_t265lw_bias + np.array([0.005 if not minus else -0.005, 0., 0.])
-                stage_idx = search_stage(current_timestamp, stages)
-                stages[stage_idx]['t265l_xyz_t265lw_bias'] = t265l_xyz_t265lw_bias.tolist()
-            if hasattr(key, 'char') and key.char == 'b':
-                t265l_xyz_t265lw_bias = t265l_xyz_t265lw_bias + np.array([0., 0.005 if not minus else -0.005, 0.])
-                stage_idx = search_stage(current_timestamp, stages)
-                stages[stage_idx]['t265l_xyz_t265lw_bias'] = t265l_xyz_t265lw_bias.tolist()
-            if hasattr(key, 'char') and key.char == 'c':
-                t265l_xyz_t265lw_bias = t265l_xyz_t265lw_bias + np.array([0., 0., 0.005 if not minus else -0.005])
-                stage_idx = search_stage(current_timestamp, stages)
-                stages[stage_idx]['t265l_xyz_t265lw_bias'] = t265l_xyz_t265lw_bias.tolist()
+                stages[stage_idx]['d455_xyz_d455w_bias'] = d455_xyz_d455w_bias.tolist()
             if key == keyboard.Key.delete:
                 stages.pop()
                 print("delete")
@@ -231,106 +200,89 @@ def main(args):
     visualizer = o3d.visualization.Visualizer()
     visualizer.create_window(width=1280, height=720, left=200, top=200, visible=True, window_name='data')
 
-    # add l515 elements
-    l515_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
-    visualizer.add_geometry(l515_frame)
-    l515_color_img = cv2.imread(os.path.join(l515_path, 'color', f'{str(l515_current_idx).zfill(16)}.png'), cv2.IMREAD_COLOR)
-    l515_color_img = cv2.cvtColor(l515_color_img, cv2.COLOR_BGR2RGB)                    # (H, W, 3), uint8
-    l515_color_img = l515_color_img / 255.                                              # (H, W, 3), float64
-    l515_depth_img = cv2.imread(os.path.join(l515_path, 'depth', f'{str(l515_current_idx).zfill(16)}.png'), cv2.IMREAD_ANYDEPTH)    # (H, W), uint16
-    l515_depth_img = l515_depth_img * l515_depth_scale                                  # (H, W), float64
-    l515_pc_xyz_l515, l515_pc_rgb = L515.img2pc(l515_depth_img, l515_intrinsics, l515_color_img)
-    l515_pcd = o3d.geometry.PointCloud()
-    l515_pcd.points = o3d.utility.Vector3dVector(l515_pc_xyz_l515)
-    l515_pcd.colors = o3d.utility.Vector3dVector(l515_pc_rgb)
-    visualizer.add_geometry(l515_pcd)
-    # add t265r elements
-    t265r_xyz_t265rw, t265r_quat_t265rw = t265r_xyzs[t265r_pose_current_idx], t265r_quats[t265r_pose_current_idx]
-    t265r_xyz_t265rw = t265r_xyz_t265rw + t265r_xyz_t265rw_bias
-    t265r_pose_t265rw = T265.raw2pose(t265r_xyz_t265rw, t265r_quat_t265rw)              # c2w
-    t265r_pose_t265r0 = np.linalg.inv(t265r_initial_pose) @ t265r_pose_t265rw           # c2c0 = w2c0 @ c2w
-    t265r_pose_l515 = np.linalg.inv(L515_2_T265r) @ t265r_pose_t265r0                   # c2l = c02l @ c2c0
-    ### t265r_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
-    ### t265r_frame.transform(t265r_pose_l515)
-    ### visualizer.add_geometry(t265r_frame)
-    ### t265r_left_img = cv2.imread(os.path.join(t265r_image_path, 'left', f'{str(t265r_image_current_idx).zfill(16)}.png'), cv2.IMREAD_GRAYSCALE)      # (H, W), uint8
-    ### cv2.namedWindow('t265r_left', cv2.WINDOW_NORMAL)
-    ### cv2.imshow('t265r_left', t265r_left_img)
+    # add d415 elements
+    d415_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
+    visualizer.add_geometry(d415_frame)
+    d415_color_img = cv2.imread(os.path.join(d415_path, 'color', f'{str(d415_current_idx).zfill(16)}.png'), cv2.IMREAD_COLOR)
+    d415_color_img = cv2.cvtColor(d415_color_img, cv2.COLOR_BGR2RGB)                    # (H, W, 3), uint8
+    d415_color_img = d415_color_img / 255.                                              # (H, W, 3), float64
+    d415_depth_img = cv2.imread(os.path.join(d415_path, 'depth', f'{str(d415_current_idx).zfill(16)}.png'), cv2.IMREAD_ANYDEPTH)    # (H, W), uint16
+    d415_depth_img = d415_depth_img * d415_depth_scale                                  # (H, W), float64
+    d415_pc_xyz_d415, d415_pc_rgb = D415.img2pc(d415_depth_img, d415_intrinsics, d415_color_img)
+    d415_pcd = o3d.geometry.PointCloud()
+    d415_pcd.points = o3d.utility.Vector3dVector(d415_pc_xyz_d415)
+    d415_pcd.colors = o3d.utility.Vector3dVector(d415_pc_rgb)
+    visualizer.add_geometry(d415_pcd)
+    # add d455 elements
+    d455_xyz_d455w, d455_quat_d455w = d455_xyzs[d455_pose_current_idx], d455_quats[d455_pose_current_idx]
+    d455_xyz_d455w = d455_xyz_d455w + d455_xyz_d455w_bias
+    d455_pose_d455w = D455.raw2pose(d455_xyz_d455w, d455_quat_d455w)              # c2w
+    d455_pose_d4550 = np.linalg.inv(d455_initial_pose) @ d455_pose_d455w           # c2c0 = w2c0 @ c2w
+    d455_pose_d415 = np.linalg.inv(D415_2_D455) @ d455_pose_d4550                   # c2l = c02l @ c2c0
+    ### d455_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
+    ### d455_frame.transform(d455_pose_d415)
+    ### visualizer.add_geometry(d455_frame)
+    ### d455_left_img = cv2.imread(os.path.join(d455_image_path, 'left', f'{str(d455_image_current_idx).zfill(16)}.png'), cv2.IMREAD_GRAYSCALE)      # (H, W), uint8
+    ### cv2.namedWindow('d455_left', cv2.WINDOW_NORMAL)
+    ### cv2.imshow('d455_left', d455_left_img)
     ### cv2.waitKey(1)
-    ### t265r_right_img = cv2.imread(os.path.join(t265r_image_path, 'right', f'{str(t265r_image_current_idx).zfill(16)}.png'), cv2.IMREAD_GRAYSCALE)    # (H, W), uint8
-    ### cv2.namedWindow('t265r_right', cv2.WINDOW_NORMAL)
-    ### cv2.imshow('t265r_right', t265r_right_img)
+    ### d455_right_img = cv2.imread(os.path.join(d455_image_path, 'right', f'{str(d455_image_current_idx).zfill(16)}.png'), cv2.IMREAD_GRAYSCALE)    # (H, W), uint8
+    ### cv2.namedWindow('d455_right', cv2.WINDOW_NORMAL)
+    ### cv2.imshow('d455_right', d455_right_img)
     ### cv2.waitKey(1)
-    # add t265l elements
-    t265l_xyz_t265lw, t265l_quat_t265lw = t265l_xyzs[t265l_pose_current_idx], t265l_quats[t265l_pose_current_idx]
-    t265l_xyz_t265lw = t265l_xyz_t265lw + t265l_xyz_t265lw_bias
-    t265l_pose_t265lw = T265.raw2pose(t265l_xyz_t265lw, t265l_quat_t265lw)              # c2w
-    t265l_pose_t265l0 = np.linalg.inv(t265l_initial_pose) @ t265l_pose_t265lw           # c2c0 = w2c0 @ c2w
-    t265l_pose_l515 = np.linalg.inv(L515_2_T265l) @ t265l_pose_t265l0                   # c2l = c02l @ c2c0
-    ### t265l_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
-    ### t265l_frame.transform(t265l_pose_l515)
-    ### visualizer.add_geometry(t265l_frame)
-    ### t265l_left_img = cv2.imread(os.path.join(t265l_image_path, 'left', f'{str(t265l_image_current_idx).zfill(16)}.png'), cv2.IMREAD_GRAYSCALE)      # (H, W), uint8
-    ### cv2.namedWindow('t265l_left', cv2.WINDOW_NORMAL)
-    ### cv2.imshow('t265l_left', t265l_left_img)
-    ### cv2.waitKey(1)
-    ### t265l_right_img = cv2.imread(os.path.join(t265l_image_path, 'right', f'{str(t265l_image_current_idx).zfill(16)}.png'), cv2.IMREAD_GRAYSCALE)    # (H, W), uint8
-    ### cv2.namedWindow('t265l_right', cv2.WINDOW_NORMAL)
-    ### cv2.imshow('t265l_right', t265l_right_img)
-    ### cv2.waitKey(1)
-    gripper_pose_l515 = t265l_pose_l515 @ np.linalg.inv(T265l_2_GRIPPER)                # g2l = c2l @ g2c
-    gripper_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
-    gripper_frame.transform(gripper_pose_l515)
-    visualizer.add_geometry(gripper_frame)
-    gripper = o3d.io.read_triangle_mesh(os.path.join("objs", "gripper.obj"))
-    gripper.transform(gripper_pose_l515)
-    visualizer.add_geometry(gripper)
-    # add pyft elements
-    pyft_pose_l515 = t265r_pose_l515 @ np.linalg.inv(T265r_2_PYFT)                      # f2l = c2l @ f2c
-    pyft_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
-    pyft_frame.transform(pyft_pose_l515)
-    visualizer.add_geometry(pyft_frame)
-    pyft_ft_pyft = pyft_fts[pyft_current_idx]
-    pyft_pose_base = L515_2_BASE @ pyft_pose_l515                                       # f2b = l2b @ f2l
-    pyft_ft_pyft = Pyft.raw2tare(pyft_ft_pyft, pyft_tare, pyft_pose_base[:3, :3])
-    pyft_f_pyft, pyft_t_pyft = pyft_ft_pyft[:3], pyft_ft_pyft[3:]
-    pyft_f_l515 = pyft_pose_l515[:3, :3] @ pyft_f_pyft
-    pyft_f_value = np.linalg.norm(pyft_f_l515)
-    pyft_f_rotation_l515 = rotation_vec2mat(pyft_f_l515 / pyft_f_value)
-    pyft_f_translation_l515 = pyft_pose_l515[:3, 3]
-    pyft_t_l515 = pyft_pose_l515[:3, :3] @ pyft_t_pyft
-    pyft_t_value = np.linalg.norm(pyft_t_l515)
-    pyft_t_rotation_l515 = rotation_vec2mat(pyft_t_l515 / pyft_t_value)
-    pyft_t_translation_l515 = pyft_pose_l515[:3, 3]
-    pyft_f_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.04 * 0.025, cone_radius=0.04 * 0.05, cylinder_height=0.04 * 0.875, cone_height=0.04 * 0.125, 
+    # gripper_pose_d415 = d455_pose_d415 @ np.linalg.inv(D455_2_GRIPPER) 
+    # gripper_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
+    # gripper_frame.transform(gripper_pose_d415)
+    # visualizer.add_geometry(gripper_frame)
+    # gripper = o3d.io.read_triangle_mesh(os.path.join("objs", "gripper.obj"))
+    # gripper.transform(gripper_pose_d415)
+    # visualizer.add_geometry(gripper)
+    # add bdft elements
+    bdft_pose_d415 = d455_pose_d415 @ np.linalg.inv(D455_2_BDFT)                      # f2l = c2l @ f2c
+    bdft_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=np.array([0., 0., 0.]))
+    bdft_frame.transform(bdft_pose_d415)
+    visualizer.add_geometry(bdft_frame)
+    bdft_ft_bdft = bdft_fts[bdft_current_idx]
+    bdft_pose_base = D415_2_BASE @ bdft_pose_d415                                       # f2b = l2b @ f2l
+    bdft_ft_bdft = Bdft.raw2tare(bdft_ft_bdft, bdft_tare, bdft_pose_base[:3, :3])
+    bdft_f_bdft, bdft_t_bdft = bdft_ft_bdft[:3], bdft_ft_bdft[3:]
+    bdft_f_d415 = bdft_pose_d415[:3, :3] @ bdft_f_bdft
+    bdft_f_value = np.linalg.norm(bdft_f_d415)
+    bdft_f_rotation_d415 = rotation_vec2mat(bdft_f_d415 / bdft_f_value)
+    bdft_f_translation_d415 = bdft_pose_d415[:3, 3]
+    bdft_t_d415 = bdft_pose_d415[:3, :3] @ bdft_t_bdft
+    bdft_t_value = np.linalg.norm(bdft_t_d415)
+    bdft_t_rotation_d415 = rotation_vec2mat(bdft_t_d415 / bdft_t_value)
+    bdft_t_translation_d415 = bdft_pose_d415[:3, 3]
+    bdft_f_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.04 * 0.025, cone_radius=0.04 * 0.05, cylinder_height=0.04 * 0.875, cone_height=0.04 * 0.125, 
                                                             resolution=20, cylinder_split=4, cone_split=1)
-    pyft_f_arrow.paint_uniform_color([1., 1., 0.])
-    pyft_f_arrow.scale(pyft_f_value, np.array([[0], [0], [0]]))
-    pyft_f_arrow.rotate(pyft_f_rotation_l515, np.array([[0], [0], [0]]))
-    pyft_f_arrow.translate(pyft_f_translation_l515)
-    visualizer.add_geometry(pyft_f_arrow)
-    pyft_t_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.4 * 0.025, cone_radius=0.4 * 0.05, cylinder_height=0.4 * 0.875, cone_height=0.4 * 0.125, 
+    bdft_f_arrow.paint_uniform_color([1., 1., 0.])
+    bdft_f_arrow.scale(bdft_f_value, np.array([[0], [0], [0]]))
+    bdft_f_arrow.rotate(bdft_f_rotation_d415, np.array([[0], [0], [0]]))
+    bdft_f_arrow.translate(bdft_f_translation_d415)
+    visualizer.add_geometry(bdft_f_arrow)
+    bdft_t_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.4 * 0.025, cone_radius=0.4 * 0.05, cylinder_height=0.4 * 0.875, cone_height=0.4 * 0.125, 
                                                             resolution=20, cylinder_split=4, cone_split=1)
-    pyft_t_arrow.paint_uniform_color([0., 1., 1.])
-    pyft_t_arrow.scale(pyft_t_value, np.array([[0], [0], [0]]))
-    pyft_t_arrow.rotate(pyft_t_rotation_l515, np.array([[0], [0], [0]]))
-    pyft_t_arrow.translate(pyft_t_translation_l515)
-    visualizer.add_geometry(pyft_t_arrow)
-    pyft_peeler = o3d.io.read_triangle_mesh(os.path.join("objs", "peeler.obj"))
-    pyft_peeler.transform(pyft_pose_l515)
-    visualizer.add_geometry(pyft_peeler)
+    bdft_t_arrow.paint_uniform_color([0., 1., 1.])
+    bdft_t_arrow.scale(bdft_t_value, np.array([[0], [0], [0]]))
+    bdft_t_arrow.rotate(bdft_t_rotation_d415, np.array([[0], [0], [0]]))
+    bdft_t_arrow.translate(bdft_t_translation_d415)
+    visualizer.add_geometry(bdft_t_arrow)
+    bdft_peeler = o3d.io.read_triangle_mesh(os.path.join("objs", "peeler.obj"))
+    bdft_peeler.transform(bdft_pose_d415)
+    visualizer.add_geometry(bdft_peeler)
     # add angler elements
     angler_width = angler_widths[angler_current_idx]
     angler_right_finger = o3d.io.read_triangle_mesh(os.path.join("objs", "right_finger.obj"))
     angler_left_finger = o3d.io.read_triangle_mesh(os.path.join("objs", "left_finger.obj"))
-    angler_finger_pose_gripper = np.identity(4)
-    angler_finger_pose_gripper[0, 3] = angler_width / 2.
-    gripper_right_finger_pose_l515 = gripper_pose_l515 @ angler_finger_pose_gripper
-    angler_right_finger.transform(gripper_right_finger_pose_l515)
-    visualizer.add_geometry(angler_right_finger)
-    angler_finger_pose_gripper[0, 3] = -angler_width / 2.
-    gripper_left_finger_pose_l515 = gripper_pose_l515 @ angler_finger_pose_gripper
-    angler_left_finger.transform(gripper_left_finger_pose_l515)
+    # angler_finger_pose_gripper = np.identity(4)
+    # angler_finger_pose_gripper[0, 3] = angler_width / 2.
+    # gripper_right_finger_pose_d415 = gripper_pose_d415 @ angler_finger_pose_gripper
+    # angler_right_finger.transform(gripper_right_finger_pose_d415)
+    # visualizer.add_geometry(angler_right_finger)
+    # angler_finger_pose_gripper[0, 3] = -angler_width / 2.
+    # gripper_left_finger_pose_d415 = gripper_pose_d415 @ angler_finger_pose_gripper
+    # angler_left_finger.transform(gripper_left_finger_pose_d415)
     visualizer.add_geometry(angler_left_finger)
 
     # visualizer setup
@@ -343,7 +295,7 @@ def main(args):
     view_control.convert_from_pinhole_camera_parameters(params, allow_arbitrary=True)
 
     # visualize loop
-    show_timestamps = np.arange(l515_start_timestamp+frame_interval_ms, l515_end_timestamp+1e-3, frame_interval_ms)
+    show_timestamps = np.arange(d415_start_timestamp+frame_interval_ms, d415_end_timestamp+1e-3, frame_interval_ms)
     with tqdm.tqdm(total=len(show_timestamps)) as pbar:
         show_idx = 0
         while show_idx < len(show_timestamps):
@@ -351,144 +303,122 @@ def main(args):
             print(current_timestamp)
             stage_idx = search_stage(current_timestamp, stages)
             stage = stages[stage_idx]
-            t265r_xyz_t265rw_bias = np.array(stage['t265r_xyz_t265rw_bias'])
-            t265l_xyz_t265lw_bias = np.array(stage['t265l_xyz_t265lw_bias'])
+            d455_xyz_d455w_bias = np.array(stage['d455_xyz_d455w_bias'])
 
-            # update l515 variables
-            l515_current_idx = np.searchsorted(l515_timestamps, current_timestamp)
-            l515_current_idx = min(l515_current_idx, len(l515_timestamps)-1)
-            l515_current_time = (l515_timestamps[l515_current_idx] - l515_start_timestamp) / 1000.
-            # update t265r variables
-            ### t265r_image_current_idx = np.searchsorted(t265r_image_timestamps, current_timestamp)
-            ### t265r_image_current_idx = min(t265r_image_current_idx, len(t265r_image_timestamps)-1)
-            ### t265r_image_current_time = (t265r_image_timestamps[t265r_image_current_idx] - l515_start_timestamp) / 1000.
-            t265r_pose_current_idx = np.searchsorted(t265r_pose_timestamps, current_timestamp)
-            t265r_pose_current_idx = min(t265r_pose_current_idx, len(t265r_pose_timestamps)-1)
-            t265r_pose_current_time = (t265r_pose_timestamps[t265r_pose_current_idx] - l515_start_timestamp) / 1000.
-            # update t265l variables
-            ### t265l_image_current_idx = np.searchsorted(t265l_image_timestamps, current_timestamp)
-            ### t265l_image_current_idx = min(t265l_image_current_idx, len(t265l_image_timestamps)-1)
-            ### t265l_image_current_time = (t265l_image_timestamps[t265l_image_current_idx] - l515_start_timestamp) / 1000.
-            t265l_pose_current_idx = np.searchsorted(t265l_pose_timestamps, current_timestamp)
-            t265l_pose_current_idx = min(t265l_pose_current_idx, len(t265l_pose_timestamps)-1)
-            t265l_pose_current_time = (t265l_pose_timestamps[t265l_pose_current_idx] - l515_start_timestamp) / 1000.
-            # update pyft variables
-            pyft_current_idx = np.searchsorted(pyft_timestamps, current_timestamp)
-            pyft_current_idx = min(pyft_current_idx, len(pyft_timestamps)-1)
-            pyft_current_time = (pyft_timestamps[pyft_current_idx] - l515_start_timestamp) / 1000.
+            # update d415 variables
+            d415_current_idx = np.searchsorted(d415_timestamps, current_timestamp)
+            d415_current_idx = min(d415_current_idx, len(d415_timestamps)-1)
+            d415_current_time = (d415_timestamps[d415_current_idx] - d415_start_timestamp) / 1000.
+            # update d455 variables
+            ### d455_image_current_idx = np.searchsorted(d455_image_timestamps, current_timestamp)
+            ### d455_image_current_idx = min(d455_image_current_idx, len(d455_image_timestamps)-1)
+            ### d455_image_current_time = (d455_image_timestamps[d455_image_current_idx] - d415_start_timestamp) / 1000.
+            d455_pose_current_idx = np.searchsorted(d455_pose_timestamps, current_timestamp)
+            d455_pose_current_idx = min(d455_pose_current_idx, len(d455_pose_timestamps)-1)
+            d455_pose_current_time = (d455_pose_timestamps[d455_pose_current_idx] - d415_start_timestamp) / 1000.
+
+            # update bdft variables
+            bdft_current_idx = np.searchsorted(bdft_timestamps, current_timestamp)
+            bdft_current_idx = min(bdft_current_idx, len(bdft_timestamps)-1)
+            bdft_current_time = (bdft_timestamps[bdft_current_idx] - d415_start_timestamp) / 1000.
             # update angler variables
             angler_current_idx = np.searchsorted(angler_timestamps, current_timestamp)
             angler_current_idx = min(angler_current_idx, len(angler_timestamps)-1)
-            angler_current_time = (angler_timestamps[angler_current_idx] - l515_start_timestamp) / 1000.
+            angler_current_time = (angler_timestamps[angler_current_idx] - d415_start_timestamp) / 1000.
             
-            # update l515 elements
-            l515_color_img = cv2.imread(os.path.join(l515_path, 'color', f'{str(l515_current_idx).zfill(16)}.png'), cv2.IMREAD_COLOR)
-            l515_color_img = cv2.cvtColor(l515_color_img, cv2.COLOR_BGR2RGB)            # (H, W, 3), uint8
-            l515_color_img = l515_color_img / 255.                                      # (H, W, 3), float64
-            l515_depth_img = cv2.imread(os.path.join(l515_path, 'depth', f'{str(l515_current_idx).zfill(16)}.png'), cv2.IMREAD_ANYDEPTH)    # (H, W), uint16
-            l515_depth_img = l515_depth_img * l515_depth_scale                                     # (H, W), float64
-            l515_pc_xyz_l515, l515_pc_rgb = L515.img2pc(l515_depth_img, l515_intrinsics, l515_color_img)
-            l515_pcd.points = o3d.utility.Vector3dVector(l515_pc_xyz_l515)
-            l515_pcd.colors = o3d.utility.Vector3dVector(l515_pc_rgb)
-            visualizer.update_geometry(l515_pcd)
-            # update t265r elements
-            t265r_xyz_t265rw, t265r_quat_t265rw = t265r_xyzs[t265r_pose_current_idx], t265r_quats[t265r_pose_current_idx]
-            t265r_xyz_t265rw = t265r_xyz_t265rw + t265r_xyz_t265rw_bias
-            t265r_pose_t265rw = T265.raw2pose(t265r_xyz_t265rw, t265r_quat_t265rw)              # c2w
-            t265r_pose_t265r0 = np.linalg.inv(t265r_initial_pose) @ t265r_pose_t265rw           # c2c0 = w2c0 @ c2w
-            t265r_pose_l515_last = t265r_pose_l515.copy()
-            t265r_pose_l515 = np.linalg.inv(L515_2_T265r) @ t265r_pose_t265r0                   # c2l = c02l @ c2c0
-            ### t265r_frame.transform(np.linalg.inv(t265r_pose_l515_last))
-            ### t265r_frame.transform(t265r_pose_l515)
-            ### visualizer.update_geometry(t265r_frame)
-            ### t265r_left_img = cv2.imread(os.path.join(t265r_image_path, 'left', f'{str(t265r_image_current_idx).zfill(16)}.png'), cv2.IMREAD_GRAYSCALE)      # (H, W), uint8
-            ### cv2.imshow('t265r_left', t265r_left_img)
+            # update d415 elements
+            d415_color_img = cv2.imread(os.path.join(d415_path, 'color', f'{str(d415_current_idx).zfill(16)}.png'), cv2.IMREAD_COLOR)
+            d415_color_img = cv2.cvtColor(d415_color_img, cv2.COLOR_BGR2RGB)            # (H, W, 3), uint8
+            d415_color_img = d415_color_img / 255.                                      # (H, W, 3), float64
+            d415_depth_img = cv2.imread(os.path.join(d415_path, 'depth', f'{str(d415_current_idx).zfill(16)}.png'), cv2.IMREAD_ANYDEPTH)    # (H, W), uint16
+            d415_depth_img = d415_depth_img * d415_depth_scale                                     # (H, W), float64
+            d415_pc_xyz_d415, d415_pc_rgb = D415.img2pc(d415_depth_img, d415_intrinsics, d415_color_img)
+            d415_pcd.points = o3d.utility.Vector3dVector(d415_pc_xyz_d415)
+            d415_pcd.colors = o3d.utility.Vector3dVector(d415_pc_rgb)
+            visualizer.update_geometry(d415_pcd)
+            # update d455 elements
+            d455_xyz_d455w, d455_quat_d455w = d455_xyzs[d455_pose_current_idx], d455_quats[d455_pose_current_idx]
+            d455_xyz_d455w = d455_xyz_d455w + d455_xyz_d455w_bias
+            d455_pose_d455w = D455.raw2pose(d455_xyz_d455w, d455_quat_d455w)              # c2w
+            d455_pose_d4550 = np.linalg.inv(d455_initial_pose) @ d455_pose_d455w           # c2c0 = w2c0 @ c2w
+            d455_pose_d415_last = d455_pose_d415.copy()
+            d455_pose_d415 = np.linalg.inv(D415_2_D455) @ d455_pose_d4550                   # c2l = c02l @ c2c0
+            ### d455_frame.transform(np.linalg.inv(d455_pose_d415_last))
+            ### d455_frame.transform(d455_pose_d415)
+            ### visualizer.update_geometry(d455_frame)
+            ### d455_left_img = cv2.imread(os.path.join(d455_image_path, 'left', f'{str(d455_image_current_idx).zfill(16)}.png'), cv2.IMREAD_GRAYSCALE)      # (H, W), uint8
+            ### cv2.imshow('d455_left', d455_left_img)
             ### cv2.waitKey(1)
-            ### t265r_right_img = cv2.imread(os.path.join(t265r_image_path, 'right', f'{str(t265r_image_current_idx).zfill(16)}.png'), cv2.IMREAD_GRAYSCALE)    # (H, W), uint8
-            ### cv2.imshow('t265r_right', t265r_right_img)
+            ### d455_right_img = cv2.imread(os.path.join(d455_image_path, 'right', f'{str(d455_image_current_idx).zfill(16)}.png'), cv2.IMREAD_GRAYSCALE)    # (H, W), uint8
+            ### cv2.imshow('d455_right', d455_right_img)
             ### cv2.waitKey(1)
-            # update t265l elements
-            t265l_xyz_t265lw, t265l_quat_t265lw = t265l_xyzs[t265l_pose_current_idx], t265l_quats[t265l_pose_current_idx]
-            t265l_xyz_t265lw = t265l_xyz_t265lw + t265l_xyz_t265lw_bias
-            t265l_pose_t265lw = T265.raw2pose(t265l_xyz_t265lw, t265l_quat_t265lw)              # c2w
-            t265l_pose_t265l0 = np.linalg.inv(t265l_initial_pose) @ t265l_pose_t265lw           # c2c0 = w2c0 @ c2w
-            t265l_pose_l515_last = t265l_pose_l515.copy()
-            t265l_pose_l515 = np.linalg.inv(L515_2_T265l) @ t265l_pose_t265l0                   # c2l = c02l @ c2c0
-            ### t265l_frame.transform(np.linalg.inv(t265l_pose_l515_last))
-            ### t265l_frame.transform(t265l_pose_l515)
-            ### visualizer.add_geometry(t265l_frame)
-            ### t265l_left_img = cv2.imread(os.path.join(t265l_image_path, 'left', f'{str(t265l_image_current_idx).zfill(16)}.png'), cv2.IMREAD_GRAYSCALE)      # (H, W), uint8
-            ### cv2.imshow('t265l_left', t265l_left_img)
-            ### cv2.waitKey(1)
-            ### t265l_right_img = cv2.imread(os.path.join(t265l_image_path, 'right', f'{str(t265l_image_current_idx).zfill(16)}.png'), cv2.IMREAD_GRAYSCALE)    # (H, W), uint8
-            ### cv2.imshow('t265l_right', t265l_right_img)
-            ### cv2.waitKey(1)
-            gripper_pose_l515_last = gripper_pose_l515.copy()
-            gripper_pose_l515 = t265l_pose_l515 @ np.linalg.inv(T265l_2_GRIPPER)                # g2l = c2l @ g2c
-            gripper_frame.transform(np.linalg.inv(gripper_pose_l515_last))
-            gripper_frame.transform(gripper_pose_l515)
-            visualizer.update_geometry(gripper_frame)
-            gripper.transform(np.linalg.inv(gripper_pose_l515_last))
-            gripper.transform(gripper_pose_l515)
-            visualizer.update_geometry(gripper)
-            # update pyft elements
-            pyft_pose_l515_last = pyft_pose_l515.copy()
-            pyft_pose_l515 = t265r_pose_l515 @ np.linalg.inv(T265r_2_PYFT)
-            pyft_frame.transform(np.linalg.inv(pyft_pose_l515_last))
-            pyft_frame.transform(pyft_pose_l515)
-            visualizer.update_geometry(pyft_frame)
-            pyft_ft_pyft = pyft_fts[pyft_current_idx]
-            ### print(pyft_ft_pyft)
-            pyft_pose_base = L515_2_BASE @ pyft_pose_l515                                       # f2b = l2b @ f2l
-            pyft_ft_pyft = Pyft.raw2tare(pyft_ft_pyft, pyft_tare, pyft_pose_base[:3, :3])
-            pyft_f_pyft, pyft_t_pyft = pyft_ft_pyft[:3], pyft_ft_pyft[3:]
-            pyft_f_l515 = pyft_pose_l515[:3, :3] @ pyft_f_pyft
-            pyft_f_value_last = pyft_f_value.copy()
-            pyft_f_value = np.linalg.norm(pyft_f_l515)
-            pyft_f_rotation_l515_last = pyft_f_rotation_l515.copy()
-            pyft_f_rotation_l515 = rotation_vec2mat(pyft_f_l515 / pyft_f_value)
-            pyft_f_translation_l515_last = pyft_f_translation_l515.copy()
-            pyft_f_translation_l515 = pyft_pose_l515[:3, 3]
-            pyft_t_l515 = pyft_pose_l515[:3, :3] @ pyft_t_pyft
-            pyft_t_value_last = pyft_t_value.copy()
-            pyft_t_value = np.linalg.norm(pyft_t_l515)
-            pyft_t_rotation_l515_last = pyft_t_rotation_l515.copy()
-            pyft_t_rotation_l515 = rotation_vec2mat(pyft_t_l515 / pyft_t_value)
-            pyft_t_translation_l515_last = pyft_t_translation_l515.copy()
-            pyft_t_translation_l515 = pyft_pose_l515[:3, 3]
-            pyft_f_arrow.translate(-pyft_f_translation_l515_last)
-            pyft_f_arrow.rotate(np.linalg.inv(pyft_f_rotation_l515_last), np.array([[0], [0], [0]]))
-            pyft_f_arrow.scale(1/pyft_f_value_last, np.array([[0], [0], [0]]))
-            pyft_f_arrow.scale(pyft_f_value, np.array([[0], [0], [0]]))
-            pyft_f_arrow.rotate(pyft_f_rotation_l515, np.array([[0], [0], [0]]))
-            pyft_f_arrow.translate(pyft_f_translation_l515)
-            visualizer.update_geometry(pyft_f_arrow)
-            pyft_t_arrow.translate(-pyft_t_translation_l515_last)
-            pyft_t_arrow.rotate(np.linalg.inv(pyft_t_rotation_l515_last), np.array([[0], [0], [0]]))
-            pyft_t_arrow.scale(1/pyft_t_value_last, np.array([[0], [0], [0]]))
-            pyft_t_arrow.scale(pyft_t_value, np.array([[0], [0], [0]]))
-            pyft_t_arrow.rotate(pyft_t_rotation_l515, np.array([[0], [0], [0]]))
-            pyft_t_arrow.translate(pyft_t_translation_l515)
-            visualizer.update_geometry(pyft_t_arrow)
-            pyft_peeler.transform(np.linalg.inv(pyft_pose_l515_last))
-            pyft_peeler.transform(pyft_pose_l515)
-            visualizer.update_geometry(pyft_peeler)
+            
+            # gripper_pose_d415_last = gripper_pose_d415.copy()
+          
+            # gripper_frame.transform(np.linalg.inv(gripper_pose_d415_last))
+            # gripper_frame.transform(gripper_pose_d415)
+            # visualizer.update_geometry(gripper_frame)
+            # gripper.transform(np.linalg.inv(gripper_pose_d415_last))
+            # gripper.transform(gripper_pose_d415)
+            # visualizer.update_geometry(gripper)
+            # update bdft elements
+            bdft_pose_d415_last = bdft_pose_d415.copy()
+            bdft_pose_d415 = d455_pose_d415 @ np.linalg.inv(D455_2_BDFT)
+            bdft_frame.transform(np.linalg.inv(bdft_pose_d415_last))
+            bdft_frame.transform(bdft_pose_d415)
+            visualizer.update_geometry(bdft_frame)
+            bdft_ft_bdft = bdft_fts[bdft_current_idx]
+            ### print(bdft_ft_bdft)
+            bdft_pose_base = D415_2_BASE @ bdft_pose_d415                                       # f2b = l2b @ f2l
+            bdft_ft_bdft = Bdft.raw2tare(bdft_ft_bdft, bdft_tare, bdft_pose_base[:3, :3])
+            bdft_f_bdft, bdft_t_bdft = bdft_ft_bdft[:3], bdft_ft_bdft[3:]
+            bdft_f_d415 = bdft_pose_d415[:3, :3] @ bdft_f_bdft
+            bdft_f_value_last = bdft_f_value.copy()
+            bdft_f_value = np.linalg.norm(bdft_f_d415)
+            bdft_f_rotation_d415_last = bdft_f_rotation_d415.copy()
+            bdft_f_rotation_d415 = rotation_vec2mat(bdft_f_d415 / bdft_f_value)
+            bdft_f_translation_d415_last = bdft_f_translation_d415.copy()
+            bdft_f_translation_d415 = bdft_pose_d415[:3, 3]
+            bdft_t_d415 = bdft_pose_d415[:3, :3] @ bdft_t_bdft
+            bdft_t_value_last = bdft_t_value.copy()
+            bdft_t_value = np.linalg.norm(bdft_t_d415)
+            bdft_t_rotation_d415_last = bdft_t_rotation_d415.copy()
+            bdft_t_rotation_d415 = rotation_vec2mat(bdft_t_d415 / bdft_t_value)
+            bdft_t_translation_d415_last = bdft_t_translation_d415.copy()
+            bdft_t_translation_d415 = bdft_pose_d415[:3, 3]
+            bdft_f_arrow.translate(-bdft_f_translation_d415_last)
+            bdft_f_arrow.rotate(np.linalg.inv(bdft_f_rotation_d415_last), np.array([[0], [0], [0]]))
+            bdft_f_arrow.scale(1/bdft_f_value_last, np.array([[0], [0], [0]]))
+            bdft_f_arrow.scale(bdft_f_value, np.array([[0], [0], [0]]))
+            bdft_f_arrow.rotate(bdft_f_rotation_d415, np.array([[0], [0], [0]]))
+            bdft_f_arrow.translate(bdft_f_translation_d415)
+            visualizer.update_geometry(bdft_f_arrow)
+            bdft_t_arrow.translate(-bdft_t_translation_d415_last)
+            bdft_t_arrow.rotate(np.linalg.inv(bdft_t_rotation_d415_last), np.array([[0], [0], [0]]))
+            bdft_t_arrow.scale(1/bdft_t_value_last, np.array([[0], [0], [0]]))
+            bdft_t_arrow.scale(bdft_t_value, np.array([[0], [0], [0]]))
+            bdft_t_arrow.rotate(bdft_t_rotation_d415, np.array([[0], [0], [0]]))
+            bdft_t_arrow.translate(bdft_t_translation_d415)
+            visualizer.update_geometry(bdft_t_arrow)
+            bdft_peeler.transform(np.linalg.inv(bdft_pose_d415_last))
+            bdft_peeler.transform(bdft_pose_d415)
+            visualizer.update_geometry(bdft_peeler)
             # update angler elements
             angler_width_last = angler_width.copy()
             angler_width = angler_widths[angler_current_idx]
-            angler_finger_pose_gripper = np.identity(4)
-            angler_finger_pose_gripper[0, 3] = angler_width / 2.
-            gripper_right_finger_pose_l515_last = gripper_right_finger_pose_l515.copy()
-            gripper_right_finger_pose_l515 = gripper_pose_l515 @ angler_finger_pose_gripper
-            angler_right_finger.transform(np.linalg.inv(gripper_right_finger_pose_l515_last))
-            angler_right_finger.transform(gripper_right_finger_pose_l515)
-            visualizer.update_geometry(angler_right_finger)
-            angler_finger_pose_gripper[0, 3] = -angler_width / 2.
-            gripper_left_finger_pose_l515_last = gripper_left_finger_pose_l515.copy()
-            gripper_left_finger_pose_l515 = gripper_pose_l515 @ angler_finger_pose_gripper
-            angler_left_finger.transform(np.linalg.inv(gripper_left_finger_pose_l515_last))
-            angler_left_finger.transform(gripper_left_finger_pose_l515)
-            visualizer.update_geometry(angler_left_finger)
+            # angler_finger_pose_gripper = np.identity(4)
+            # angler_finger_pose_gripper[0, 3] = angler_width / 2.
+            # gripper_right_finger_pose_d415_last = gripper_right_finger_pose_d415.copy()
+            # gripper_right_finger_pose_d415 = gripper_pose_d415 @ angler_finger_pose_gripper
+            # angler_right_finger.transform(np.linalg.inv(gripper_right_finger_pose_d415_last))
+            # angler_right_finger.transform(gripper_right_finger_pose_d415)
+            # visualizer.update_geometry(angler_right_finger)
+            # angler_finger_pose_gripper[0, 3] = -angler_width / 2.
+            # gripper_left_finger_pose_d415_last = gripper_left_finger_pose_d415.copy()
+            # gripper_left_finger_pose_d415 = gripper_pose_d415 @ angler_finger_pose_gripper
+            # angler_left_finger.transform(np.linalg.inv(gripper_left_finger_pose_d415_last))
+            # angler_left_finger.transform(gripper_left_finger_pose_d415)
+            # visualizer.update_geometry(angler_left_finger)
 
             # visualizer update
             visualizer.poll_events()
@@ -509,7 +439,7 @@ def main(args):
                     backward = False
                 else:
                     pass
-            pbar.set_postfix(f=pyft_f_value, t=pyft_t_value, s=stage['stage'])
+            pbar.set_postfix(f=bdft_f_value, t=bdft_t_value, s=stage['stage'])
 
             # keyboard quit
             if quit:
