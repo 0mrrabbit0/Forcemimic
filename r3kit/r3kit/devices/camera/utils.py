@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 
 
-def inpaint(img:np.ndarray, missing_value=0) -> np.ndarray:
+def inpaint(img: np.ndarray, missing_value=0) -> np.ndarray:
     # cv2 inpainting doesn't handle the border properly
     # https://stackoverflow.com/questions/25974033/inpainting-depth-map-still-a-black-image-border
     original_dtype = img.dtype

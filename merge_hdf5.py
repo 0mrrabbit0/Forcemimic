@@ -10,24 +10,24 @@ from utils.transformation import delta_xyz, delta_quat
 def config_parse() -> configargparse.Namespace:
     parser = configargparse.ArgumentParser()
 
-    parser.add_argument('--config', is_config_file=True, help='config file path')
-    parser.add_argument('--data_path', type=str)
-    parser.add_argument('--save_path', type=str)
-    parser.add_argument('--stage', type=str)
-    parser.add_argument('--pc_mesh', action='store_true')
-    parser.add_argument('--ft_coord', action='store_true')
-    parser.add_argument('--num_o', type=int)
-    parser.add_argument('--num_a', type=int)
-    parser.add_argument('--num_aa', type=int)
-    parser.add_argument('--pad_o', action='store_true')
-    parser.add_argument('--pad_a', action='store_true')
-    parser.add_argument('--pad_aa', action='store_true')
-    parser.add_argument('--gripper_xyz_threshold', type=float)
-    parser.add_argument('--gripper_quat_threshold', type=float)
-    parser.add_argument('--bdft_xyz_threshold', type=float)
-    parser.add_argument('--bdft_quat_threshold', type=float)
-    parser.add_argument('--bdft_f_threshold', type=float)
-    parser.add_argument('--bdft_t_threshold', type=float)
+    parser.add_argument("--config", is_config_file=True, help="config file path")
+    parser.add_argument("--data_path", type=str)
+    parser.add_argument("--save_path", type=str)
+    parser.add_argument("--stage", type=str)
+    parser.add_argument("--pc_mesh", action="store_true")
+    parser.add_argument("--ft_coord", action="store_true")
+    parser.add_argument("--num_o", type=int)
+    parser.add_argument("--num_a", type=int)
+    parser.add_argument("--num_aa", type=int)
+    parser.add_argument("--pad_o", action="store_true")
+    parser.add_argument("--pad_a", action="store_true")
+    parser.add_argument("--pad_aa", action="store_true")
+    parser.add_argument("--gripper_xyz_threshold", type=float)
+    parser.add_argument("--gripper_quat_threshold", type=float)
+    parser.add_argument("--bdft_xyz_threshold", type=float)
+    parser.add_argument("--bdft_quat_threshold", type=float)
+    parser.add_argument("--bdft_f_threshold", type=float)
+    parser.add_argument("--bdft_t_threshold", type=float)
 
     args = parser.parse_args()
     return args
@@ -47,34 +47,34 @@ def main(args):
     pad_a = args.pad_a
     pad_aa = args.pad_aa
     filter_thresholds = {
-        'gripper_xyz_threshold': args.gripper_xyz_threshold,
-        'gripper_quat_threshold': args.gripper_quat_threshold,
-        'bdft_xyz_threshold': args.bdft_xyz_threshold,
-        'bdft_quat_threshold': args.bdft_quat_threshold,
-        'bdft_f_threshold': args.bdft_f_threshold,
-        'bdft_t_threshold': args.bdft_t_threshold
+        "gripper_xyz_threshold": args.gripper_xyz_threshold,
+        "gripper_quat_threshold": args.gripper_quat_threshold,
+        "bdft_xyz_threshold": args.bdft_xyz_threshold,
+        "bdft_quat_threshold": args.bdft_quat_threshold,
+        "bdft_f_threshold": args.bdft_f_threshold,
+        "bdft_t_threshold": args.bdft_t_threshold,
     }
     hdf5_paths = []
     for trial_name in sorted(os.listdir(data_path)):
         if not os.path.isdir(os.path.join(data_path, trial_name)):
             continue
         for file_name in sorted(os.listdir(os.path.join(data_path, trial_name))):
-            if not file_name.endswith('.hdf5'):
+            if not file_name.endswith(".hdf5"):
                 continue
-            if stage == 'all' or stage in file_name:
+            if stage == "all" or stage in file_name:
                 hdf5_paths.append(os.path.join(data_path, trial_name, file_name))
 
     # hdf5 loop
-    with h5py.File(save_path, 'w') as save_hdf5:
-        save_hdf5_data_group = save_hdf5.create_group('data')
-        save_hdf5_data_group.attrs['pc_mesh'] = pc_mesh
-        save_hdf5_data_group.attrs['ft_coord'] = ft_coord
-        save_hdf5_data_group.attrs['num_o'] = num_o
-        save_hdf5_data_group.attrs['num_a'] = num_a
-        save_hdf5_data_group.attrs['num_aa'] = num_aa
-        save_hdf5_data_group.attrs['pad_o'] = pad_o
-        save_hdf5_data_group.attrs['pad_a'] = pad_a
-        save_hdf5_data_group.attrs['pad_aa'] = pad_aa
+    with h5py.File(save_path, "w") as save_hdf5:
+        save_hdf5_data_group = save_hdf5.create_group("data")
+        save_hdf5_data_group.attrs["pc_mesh"] = pc_mesh
+        save_hdf5_data_group.attrs["ft_coord"] = ft_coord
+        save_hdf5_data_group.attrs["num_o"] = num_o
+        save_hdf5_data_group.attrs["num_a"] = num_a
+        save_hdf5_data_group.attrs["num_aa"] = num_aa
+        save_hdf5_data_group.attrs["pad_o"] = pad_o
+        save_hdf5_data_group.attrs["pad_a"] = pad_a
+        save_hdf5_data_group.attrs["pad_aa"] = pad_aa
         for k, v in filter_thresholds.items():
             save_hdf5_data_group.attrs[k] = v
 
@@ -84,47 +84,95 @@ def main(args):
             stage_name = os.path.splitext(os.path.basename(hdf5_path))[0]
 
             # load hdf5
-            with h5py.File(hdf5_path, 'r') as data_hdf5:
-                data_group = data_hdf5['data']
-                num_samples = data_group.attrs['num_samples']
+            with h5py.File(hdf5_path, "r") as data_hdf5:
+                data_group = data_hdf5["data"]
+                num_samples = data_group.attrs["num_samples"]
 
-                data_o_group = data_group['o']
+                data_o_group = data_group["o"]
                 data_o_attrs = dict(data_o_group.attrs)
                 if pc_mesh:
-                    d415_pc_xyzs_d415_o = data_o_group['d415_pc_xyzs_d415_mesh'][:].astype(np.float32)
-                    d415_pc_rgbs_o = data_o_group['d415_pc_rgbs_mesh'][:].astype(np.float32)
+                    d415_pc_xyzs_d415_o = data_o_group["d415_pc_xyzs_d415_mesh"][
+                        :
+                    ].astype(np.float32)
+                    d415_pc_rgbs_o = data_o_group["d415_pc_rgbs_mesh"][:].astype(
+                        np.float32
+                    )
                 else:
-                    d415_pc_xyzs_d415_o = data_o_group['d415_pc_xyzs_d415'][:].astype(np.float32)
-                    d415_pc_rgbs_o = data_o_group['d415_pc_rgbs'][:].astype(np.float32)
-                gripper_xyzs_d415_o = data_o_group['gripper_xyzs_d415'][:].astype(np.float32)
-                gripper_quats_d415_o = data_o_group['gripper_quats_d415'][:].astype(np.float32)
-                bdft_xyzs_d415_o = data_o_group['bdft_xyzs_d415'][:].astype(np.float32)
-                bdft_quats_d415_o = data_o_group['bdft_quats_d415'][:].astype(np.float32)
+                    d415_pc_xyzs_d415_o = data_o_group["d415_pc_xyzs_d415"][:].astype(
+                        np.float32
+                    )
+                    d415_pc_rgbs_o = data_o_group["d415_pc_rgbs"][:].astype(np.float32)
+                gripper_xyzs_d415_o = data_o_group["gripper_xyzs_d415"][:].astype(
+                    np.float32
+                )
+                gripper_quats_d415_o = data_o_group["gripper_quats_d415"][:].astype(
+                    np.float32
+                )
+                bdft_xyzs_d415_o = data_o_group["bdft_xyzs_d415"][:].astype(np.float32)
+                bdft_quats_d415_o = data_o_group["bdft_quats_d415"][:].astype(
+                    np.float32
+                )
                 if ft_coord:
-                    bdft_fs_o = data_o_group['bdft_fs_d415'][:].astype(np.float32)
-                    bdft_ts_o = data_o_group['bdft_ts_d415'][:].astype(np.float32)
+                    bdft_fs_o = data_o_group["bdft_fs_d415"][:].astype(np.float32)
+                    bdft_ts_o = data_o_group["bdft_ts_d415"][:].astype(np.float32)
                 else:
-                    bdft_fs_o = data_o_group['bdft_fs_bdft'][:].astype(np.float32)
-                    bdft_ts_o = data_o_group['bdft_ts_bdft'][:].astype(np.float32)
-                angler_widths_o = data_o_group['angler_widths'][:].astype(np.float32)
-            
+                    bdft_fs_o = data_o_group["bdft_fs_bdft"][:].astype(np.float32)
+                    bdft_ts_o = data_o_group["bdft_ts_bdft"][:].astype(np.float32)
+                angler_widths_o = data_o_group["angler_widths"][:].astype(np.float32)
+
             # delta filter
             if sum(filter_thresholds.values()) != 0:
                 lidx, ridx = 0, 0
                 selected_idxs = [0]
                 while ridx < num_samples:
-                    delta_gripper_xyz = delta_xyz(gripper_xyzs_d415_o[ridx], gripper_xyzs_d415_o[lidx])
-                    delta_gripper_quat = delta_quat(gripper_quats_d415_o[ridx], gripper_quats_d415_o[lidx]) / np.pi * 180
-                    delta_bdft_xyz = delta_xyz(bdft_xyzs_d415_o[ridx], bdft_xyzs_d415_o[lidx])
-                    delta_bdft_quat = delta_quat(bdft_quats_d415_o[ridx], bdft_quats_d415_o[lidx]) / np.pi * 180
+                    delta_gripper_xyz = delta_xyz(
+                        gripper_xyzs_d415_o[ridx], gripper_xyzs_d415_o[lidx]
+                    )
+                    delta_gripper_quat = (
+                        delta_quat(
+                            gripper_quats_d415_o[ridx], gripper_quats_d415_o[lidx]
+                        )
+                        / np.pi
+                        * 180
+                    )
+                    delta_bdft_xyz = delta_xyz(
+                        bdft_xyzs_d415_o[ridx], bdft_xyzs_d415_o[lidx]
+                    )
+                    delta_bdft_quat = (
+                        delta_quat(bdft_quats_d415_o[ridx], bdft_quats_d415_o[lidx])
+                        / np.pi
+                        * 180
+                    )
                     delta_bdft_f = delta_xyz(bdft_fs_o[ridx], bdft_fs_o[lidx])
                     delta_bdft_t = delta_xyz(bdft_ts_o[ridx], bdft_ts_o[lidx])
-                    if (delta_gripper_xyz > filter_thresholds['gripper_xyz_threshold'] and filter_thresholds['gripper_xyz_threshold'] != 0) or \
-                        (delta_gripper_quat > filter_thresholds['gripper_quat_threshold'] and filter_thresholds['gripper_quat_threshold'] != 0) or \
-                        (delta_bdft_xyz > filter_thresholds['bdft_xyz_threshold'] and filter_thresholds['bdft_xyz_threshold'] != 0) or \
-                        (delta_bdft_quat > filter_thresholds['bdft_quat_threshold'] and filter_thresholds['bdft_quat_threshold'] != 0) or \
-                        (delta_bdft_f > filter_thresholds['bdft_f_threshold'] and filter_thresholds['bdft_f_threshold'] != 0) or \
-                        (delta_bdft_t > filter_thresholds['bdft_t_threshold'] and filter_thresholds['bdft_t_threshold'] != 0):
+                    if (
+                        (
+                            delta_gripper_xyz
+                            > filter_thresholds["gripper_xyz_threshold"]
+                            and filter_thresholds["gripper_xyz_threshold"] != 0
+                        )
+                        or (
+                            delta_gripper_quat
+                            > filter_thresholds["gripper_quat_threshold"]
+                            and filter_thresholds["gripper_quat_threshold"] != 0
+                        )
+                        or (
+                            delta_bdft_xyz > filter_thresholds["bdft_xyz_threshold"]
+                            and filter_thresholds["bdft_xyz_threshold"] != 0
+                        )
+                        or (
+                            delta_bdft_quat > filter_thresholds["bdft_quat_threshold"]
+                            and filter_thresholds["bdft_quat_threshold"] != 0
+                        )
+                        or (
+                            delta_bdft_f > filter_thresholds["bdft_f_threshold"]
+                            and filter_thresholds["bdft_f_threshold"] != 0
+                        )
+                        or (
+                            delta_bdft_t > filter_thresholds["bdft_t_threshold"]
+                            and filter_thresholds["bdft_t_threshold"] != 0
+                        )
+                    ):
                         selected_idxs.append(ridx)
                         lidx = ridx
                     ridx += 1
@@ -140,19 +188,37 @@ def main(args):
                 filter_ratio = len(selected_idxs) / num_samples
                 print(filter_ratio)
                 num_samples = len(selected_idxs)
-            
+
             # save data
-            demo_name = f'demo_{whole_demo_name}_{stage_name}'
+            demo_name = f"demo_{whole_demo_name}_{stage_name}"
             save_hdf5_demo_group = save_hdf5_data_group.create_group(demo_name)
-            save_hdf5_demo_group.create_dataset('d415_pc_xyzs_d415', data=d415_pc_xyzs_d415_o, dtype=np.float32)
-            save_hdf5_demo_group.create_dataset('d415_pc_rgbs', data=d415_pc_rgbs_o, dtype=np.float32)
-            save_hdf5_demo_group.create_dataset('gripper_xyzs_d415', data=gripper_xyzs_d415_o, dtype=np.float32)
-            save_hdf5_demo_group.create_dataset('gripper_quats_d415', data=gripper_quats_d415_o, dtype=np.float32)
-            save_hdf5_demo_group.create_dataset('bdft_xyzs_d415', data=bdft_xyzs_d415_o, dtype=np.float32)
-            save_hdf5_demo_group.create_dataset('bdft_quats_d415', data=bdft_quats_d415_o, dtype=np.float32)
-            save_hdf5_demo_group.create_dataset('bdft_fs', data=bdft_fs_o, dtype=np.float32)
-            save_hdf5_demo_group.create_dataset('bdft_ts', data=bdft_ts_o, dtype=np.float32)
-            save_hdf5_demo_group.create_dataset('angler_widths', data=angler_widths_o, dtype=np.float32)
+            save_hdf5_demo_group.create_dataset(
+                "d415_pc_xyzs_d415", data=d415_pc_xyzs_d415_o, dtype=np.float32
+            )
+            save_hdf5_demo_group.create_dataset(
+                "d415_pc_rgbs", data=d415_pc_rgbs_o, dtype=np.float32
+            )
+            save_hdf5_demo_group.create_dataset(
+                "gripper_xyzs_d415", data=gripper_xyzs_d415_o, dtype=np.float32
+            )
+            save_hdf5_demo_group.create_dataset(
+                "gripper_quats_d415", data=gripper_quats_d415_o, dtype=np.float32
+            )
+            save_hdf5_demo_group.create_dataset(
+                "bdft_xyzs_d415", data=bdft_xyzs_d415_o, dtype=np.float32
+            )
+            save_hdf5_demo_group.create_dataset(
+                "bdft_quats_d415", data=bdft_quats_d415_o, dtype=np.float32
+            )
+            save_hdf5_demo_group.create_dataset(
+                "bdft_fs", data=bdft_fs_o, dtype=np.float32
+            )
+            save_hdf5_demo_group.create_dataset(
+                "bdft_ts", data=bdft_ts_o, dtype=np.float32
+            )
+            save_hdf5_demo_group.create_dataset(
+                "angler_widths", data=angler_widths_o, dtype=np.float32
+            )
 
             # save sample
             o_idxs, a_idxs = [], []
@@ -164,7 +230,9 @@ def main(args):
                 o_padding = num_o - (o_end_idx - o_begin_idx)
                 if o_padding > 0:
                     if pad_o:
-                        o_selected_idxs = [0] * o_padding + list(range(o_begin_idx, o_end_idx))
+                        o_selected_idxs = [0] * o_padding + list(
+                            range(o_begin_idx, o_end_idx)
+                        )
                     else:
                         selected = False
                 else:
@@ -178,33 +246,43 @@ def main(args):
                         if a_padding > num_a - num_aa:
                             selected = False
                         else:
-                            a_selected_idxs = list(range(a_begin_idx, a_end_idx)) + [num_samples - 1] * a_padding
+                            a_selected_idxs = (
+                                list(range(a_begin_idx, a_end_idx))
+                                + [num_samples - 1] * a_padding
+                            )
                     elif pad_a and not pad_aa:
-                        a_selected_idxs = list(range(a_begin_idx, a_end_idx)) + [num_samples - 1] * a_padding
+                        a_selected_idxs = (
+                            list(range(a_begin_idx, a_end_idx))
+                            + [num_samples - 1] * a_padding
+                        )
                     else:
                         selected = False
                 else:
                     a_selected_idxs = list(range(a_begin_idx, a_end_idx))
-                
+
                 if selected:
                     o_idxs.append(o_selected_idxs)
                     a_idxs.append(a_selected_idxs)
-            save_hdf5_demo_group.create_dataset('o', data=np.array(o_idxs, dtype=int), dtype=int)
-            save_hdf5_demo_group.create_dataset('a', data=np.array(a_idxs, dtype=int), dtype=int)
+            save_hdf5_demo_group.create_dataset(
+                "o", data=np.array(o_idxs, dtype=int), dtype=int
+            )
+            save_hdf5_demo_group.create_dataset(
+                "a", data=np.array(a_idxs, dtype=int), dtype=int
+            )
 
             # save attributes
-            save_hdf5_demo_group.attrs['num_samples'] = len(o_idxs)
+            save_hdf5_demo_group.attrs["num_samples"] = len(o_idxs)
             for k, v in data_o_attrs.items():
                 save_hdf5_demo_group.attrs[k] = v
             total_samples += len(o_idxs)
             if sum(filter_thresholds.values()) != 0:
-                save_hdf5_demo_group.attrs['filter_ratio'] = filter_ratio
+                save_hdf5_demo_group.attrs["filter_ratio"] = filter_ratio
 
         # save attributes
-        save_hdf5_data_group.attrs['num_samples'] = total_samples
-        print(f'{total_samples = }')
+        save_hdf5_data_group.attrs["num_samples"] = total_samples
+        print(f"{total_samples = }")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = config_parse()
     main(args)

@@ -8,20 +8,21 @@ import pyrealsense2 as rs
 
 from r3kit.devices.camera.base import CameraBase
 from r3kit.devices.camera.utils import inpaint
-from r3kit.devices.camera.realsense.config import *
+from r3kit.devices.camera.realsense.config import D415_ID, D415_STREAMS
 from r3kit.utils.vis import draw_time, save_imgs
 
 
 class D415(CameraBase):
-    def __init__(self, id: Optional[str] = D415_ID, name: str = 'D415') -> None:
+    def __init__(self, id: Optional[str] = D415_ID, name: str = "D415") -> None:
         super().__init__(name=name)
 
         self.pipeline = rs.pipeline()
         self.config = rs.config()
         if id is not None:
             self.config.enable_device(id)
+        else:
+            pass
 
-        # D415 的典型流配置（根据官方文档）
         # (stream, index, width, height, format, fps)
         for stream_item in D415_STREAMS:
             self.config.enable_stream(*stream_item)
@@ -40,13 +41,22 @@ class D415(CameraBase):
 
         # 获取一次帧，初始化参数
         frames = self.pipeline.wait_for_frames()
+        color_frame = frames.get_color_frame().as_video_frame()
+        depth_frame = frames.get_depth_frame().as_depth_frame()
+        self.depth2color = depth_frame.get_profile().get_extrinsics_to(
+            color_frame.get_profile()
+        )
         aligned_frames = self.align.process(frames)
-        color_frame = aligned_frames.get_color_frame().as_video_frame()
-        depth_frame = aligned_frames.get_depth_frame().as_depth_frame()
-
-        self.depth2color = depth_frame.get_profile().get_extrinsics_to(color_frame.get_profile())
-        color_intrinsics = color_frame.get_profile().as_video_stream_profile().get_intrinsics()
-        self.color_intrinsics = [color_intrinsics.ppx, color_intrinsics.ppy, color_intrinsics.fx, color_intrinsics.fy]
+        color_frame = aligned_frames.get_color_frame()
+        color_intrinsics = (
+            color_frame.get_profile().as_video_stream_profile().get_intrinsics()
+        )
+        self.color_intrinsics = [
+            color_intrinsics.ppx,
+            color_intrinsics.ppy,
+            color_intrinsics.fx,
+            color_intrinsics.fy,
+        ]
 
         self.in_streaming = False
 
@@ -81,11 +91,7 @@ class D415(CameraBase):
             self.pipeline_profile = self.pipeline.start(self.config, callback)
         else:
             self.streaming_mutex = Lock()
-            self.streaming_data = {
-                "depth": [],
-                "color": [],
-                "timestamp_ms": []
-            }
+            self.streaming_data = {"depth": [], "color": [], "timestamp_ms": []}
             self.pipeline_profile = self.pipeline.start(self.config, self.callback)
         self.in_streaming = True
 
@@ -96,26 +102,39 @@ class D415(CameraBase):
             self.streaming_mutex = None
         if hasattr(self, "streaming_data"):
             streaming_data = self.streaming_data
-            self.streaming_data = {
-                "depth": [],
-                "color": [],
-                "timestamp_ms": []
-            }
+            self.streaming_data = {"depth": [], "color": [], "timestamp_ms": []}
         self.pipeline_profile = self.pipeline.start(self.config)
         self.in_streaming = False
         return streaming_data
 
     def save_streaming(self, save_path: str, streaming_data: dict) -> None:
-        assert len(streaming_data["depth"]) == len(streaming_data["color"]) == len(streaming_data["timestamp_ms"])
-        np.savetxt(os.path.join(save_path, "intrinsics.txt"), self.color_intrinsics, fmt="%.16f")
-        np.savetxt(os.path.join(save_path, "depth_scale.txt"), [self.depth_scale], fmt="%.16f")
-        np.save(os.path.join(save_path, "timestamps.npy"), np.array(streaming_data["timestamp_ms"], dtype=float))
-        freq = len(streaming_data["timestamp_ms"]) / (streaming_data["timestamp_ms"][-1] - streaming_data["timestamp_ms"][0])
-        draw_time(streaming_data["timestamp_ms"], os.path.join(save_path, f"freq_{freq}.png"))
-        os.makedirs(os.path.join(save_path, 'depth'), exist_ok=True)
-        os.makedirs(os.path.join(save_path, 'color'), exist_ok=True)
-        save_imgs(os.path.join(save_path, 'depth'), streaming_data["depth"])
-        save_imgs(os.path.join(save_path, 'color'), streaming_data["color"])
+        assert (
+            len(streaming_data["depth"])
+            == len(streaming_data["color"])
+            == len(streaming_data["timestamp_ms"])
+        )
+        np.savetxt(
+            os.path.join(save_path, "intrinsics.txt"),
+            self.color_intrinsics,
+            fmt="%.16f",
+        )
+        np.savetxt(
+            os.path.join(save_path, "depth_scale.txt"), [self.depth_scale], fmt="%.16f"
+        )
+        np.save(
+            os.path.join(save_path, "timestamps.npy"),
+            np.array(streaming_data["timestamp_ms"], dtype=float),
+        )
+        freq = len(streaming_data["timestamp_ms"]) / (
+            streaming_data["timestamp_ms"][-1] - streaming_data["timestamp_ms"][0]
+        )
+        draw_time(
+            streaming_data["timestamp_ms"], os.path.join(save_path, f"freq_{freq}.png")
+        )
+        os.makedirs(os.path.join(save_path, "depth"), exist_ok=True)
+        os.makedirs(os.path.join(save_path, "color"), exist_ok=True)
+        save_imgs(os.path.join(save_path, "depth"), streaming_data["depth"])
+        save_imgs(os.path.join(save_path, "color"), streaming_data["color"])
 
     def collect_streaming(self, collect: bool = True) -> None:
         self._collect_streaming_data = collect
@@ -137,7 +156,10 @@ class D415(CameraBase):
             if self.inpaint:
                 depth_image = inpaint(depth_image, missing_value=0)
             self.streaming_mutex.acquire()
-            if len(self.streaming_data["timestamp_ms"]) != 0 and ts == self.streaming_data["timestamp_ms"][-1]:
+            if (
+                len(self.streaming_data["timestamp_ms"]) != 0
+                and ts == self.streaming_data["timestamp_ms"][-1]
+            ):
                 pass
             else:
                 self.streaming_data["depth"].append(depth_image.copy())
@@ -146,7 +168,11 @@ class D415(CameraBase):
             self.streaming_mutex.release()
 
     @staticmethod
-    def img2pc(depth_img: np.ndarray, intrinsics: np.ndarray, color_img: Optional[np.ndarray] = None) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+    def img2pc(
+        depth_img: np.ndarray,
+        intrinsics: np.ndarray,
+        color_img: Optional[np.ndarray] = None,
+    ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
         height, width = depth_img.shape
         [pixX, pixY] = np.meshgrid(np.arange(width), np.arange(height))
         x = (pixX - intrinsics[0]) * depth_img / intrinsics[2]
@@ -167,7 +193,7 @@ if __name__ == "__main__":
     from r3kit.utils.data import get_point_cloud
     from r3kit.utils.vis import vis_pc
 
-    camera = D415(id='123456789', name='D415')
+    camera = D415(id="323522061547", name="D415")
 
     i = 0
     while True:
@@ -180,21 +206,25 @@ if __name__ == "__main__":
         print(np.mean(xyz[:, 2]))
         vis_pc(xyz, rgb)
 
-        cv2.imshow('color', color)
+        cv2.imshow("color", color)
         while True:
-            if cv2.getWindowProperty('color', cv2.WND_PROP_VISIBLE) <= 0:
+            if cv2.getWindowProperty("color", cv2.WND_PROP_VISIBLE) <= 0:
                 break
             cv2.waitKey(1)
         cv2.destroyAllWindows()
 
         cmd = input("whether save? (y/n): ")
-        if cmd == 'y':
+        if cmd == "y":
             cv2.imwrite(f"rgb_{i}.png", color)
             np.savez(f"xyzrgb_{i}.npz", xyz=xyz, rgb=rgb)
             i += 1
-        elif cmd == 'n':
+        elif cmd == "n":
             cmd = input("whether quit? (y/n): ")
-            if cmd == 'y':
+            if cmd == "y":
                 break
+            elif cmd == "n":
+                pass
+            else:
+                raise ValueError
         else:
             raise ValueError

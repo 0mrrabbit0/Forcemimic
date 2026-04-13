@@ -1,7 +1,7 @@
 # 传感器IP
-BLUEDOT_IP = "192.168.0.20" 
+BLUEDOT_IP = "192.168.0.20"
 # 通信端口
-BLUEDOT_PORT = 502            
+BLUEDOT_PORT = 502
 # 从站ID
 BLUEDOT_SLAVE_ID = 20
 # 采样频率

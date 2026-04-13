@@ -28,18 +28,28 @@ from typing import Optional, Callable, Dict, Union, List
 
 import numpy as np
 from pymodbus.client import ModbusTcpClient
-from pymodbus.exceptions import ModbusException
 
 # NOTE: these constants should be provided by your project's config.
 # If r3kit.devices.ftsensor.bluedot.config exists, prefer that import.
 try:
-    from r3kit.devices.ftsensor.bluedot.config import *
+    from r3kit.devices.ftsensor.bluedot.config import (  # noqa: F401
+        BLUEDOT_IP,
+        BLUEDOT_PORT,
+        BLUEDOT_FPS,
+        BLUEDOT_SCALE,
+        BLUEDOT_RETRY,
+        BLUEDOT_RETRY_DELAY,
+        BLUEDOT_ID,
+        BLUEDOT_SLAVE_ID,
+    )
 except Exception:
     # Fallback defaults (override as needed)
     BLUEDOT_IP = "192.168.0.20"
     BLUEDOT_PORT = 502
     BLUEDOT_FPS = 100
-    BLUEDOT_SCALE = 1.0          # generic scale; many sensors provide native floats so scale=1.0
+    BLUEDOT_SCALE = (
+        1.0  # generic scale; many sensors provide native floats so scale=1.0
+    )
     BLUEDOT_RETRY = 3
     BLUEDOT_RETRY_DELAY = 0.5
     BLUEDOT_ID = BLUEDOT_IP
@@ -49,11 +59,14 @@ except Exception:
 try:
     from r3kit.utils.vis import draw_time, draw_items
 except Exception:
+
     def draw_time(*args, **kwargs):
         # placeholder
         return
+
     def draw_items(*args, **kwargs):
         return
+
 
 # Base class
 try:
@@ -74,14 +87,14 @@ class BlueDotLB75(FTSensorBase):
 
     # Default register map (modify according to actual device manual)
     DEFAULT_REG_MAP = {
-        'fx': 0,    # starting register for Fx (two registers for 32-bit float or two 16-bit words)
-        'fy': 2,
-        'fz': 4,
-        'mx': 6,
-        'my': 8,
-        'mz': 10,
-        'status': 12,
-        'timestamp': 13
+        "fx": 0,  # starting register for Fx (two registers for 32-bit float or two 16-bit words)
+        "fy": 2,
+        "fz": 4,
+        "mx": 6,
+        "my": 8,
+        "mz": 10,
+        "status": 12,
+        "timestamp": 13,
     }
 
     def __init__(
@@ -96,7 +109,7 @@ class BlueDotLB75(FTSensorBase):
         retry_delay: float = BLUEDOT_RETRY_DELAY,
         scale: float = BLUEDOT_SCALE,
         register_map: dict = None,
-        write_init_register: tuple = (0x0000 ,1)
+        write_init_register: tuple = (0x0000, 1),
     ) -> None:
         super().__init__(name=name)
         self.host = host
@@ -107,7 +120,9 @@ class BlueDotLB75(FTSensorBase):
         self.retry_delay = retry_delay
         self.scale = scale
 
-        self.registers = register_map if register_map is not None else deepcopy(self.DEFAULT_REG_MAP)
+        self.registers = (
+            register_map if register_map is not None else deepcopy(self.DEFAULT_REG_MAP)
+        )
 
         self.client: Optional[ModbusTcpClient] = None
         self.connected = False
@@ -128,12 +143,16 @@ class BlueDotLB75(FTSensorBase):
         if ok:
             print("[BlueDotLB75] Connected successfully.")
         else:
-            print("[BlueDotLB75] ⚠️ Auto-connect failed. You may need to call connect() manually.")
+            print(
+                "[BlueDotLB75] ⚠️ Auto-connect failed. You may need to call connect() manually."
+            )
 
     # -------------------------
     # Connection Management
     # -------------------------
-    def connect(self, write_init_register: Optional[tuple] = None, timeout: float = 3.0) -> bool:
+    def connect(
+        self, write_init_register: Optional[tuple] = None, timeout: float = 3.0
+    ) -> bool:
         """
         Connect to Modbus TCP device. Optionally write an init register (address, value) if provided.
 
@@ -146,7 +165,9 @@ class BlueDotLB75(FTSensorBase):
         attempts = 0
         while attempts < self.retry:
             try:
-                self.client = ModbusTcpClient(host=self.host, port=self.port, timeout=timeout)
+                self.client = ModbusTcpClient(
+                    host=self.host, port=self.port, timeout=timeout
+                )
                 ok = self.client.connect()
                 if not ok:
                     attempts += 1
@@ -164,7 +185,7 @@ class BlueDotLB75(FTSensorBase):
                         print("[BlueDotLB75] init write successful")
                 return True
             except Exception as e:
-                print(f"[BlueDotLB75] connect attempt {attempts+1} failed: {e}")
+                print(f"[BlueDotLB75] connect attempt {attempts + 1} failed: {e}")
                 attempts += 1
                 time.sleep(self.retry_delay)
         self.connected = False
@@ -238,7 +259,9 @@ class BlueDotLB75(FTSensorBase):
             return None
 
     @staticmethod
-    def _parse_as_scaled_ints(registers: List[int], scale: float = 32.768) -> Optional[np.ndarray]:
+    def _parse_as_scaled_ints(
+        registers: List[int], scale: float = 32.768
+    ) -> Optional[np.ndarray]:
         """
         Fallback parser: interpret each value as two 16-bit words forming signed 32-bit int,
         or interpret each 16-bit as signed int16 and scale.
@@ -253,7 +276,7 @@ class BlueDotLB75(FTSensorBase):
         try:
             arr = []
             for i in range(6):
-                w = registers[i*2] & 0xFFFF
+                w = registers[i * 2] & 0xFFFF
                 # if typical sensor encodes uint16 representing signed via offset 32768:
                 val = (int(w) - 32768) / scale
                 arr.append(val)
@@ -269,7 +292,7 @@ class BlueDotLB75(FTSensorBase):
         Tries IEEE754 floats first, then falls back to scaled int interpretation.
         Returns numpy array shape (6,) or None on failure.
         """
-        start = self.registers['fx']
+        start = self.registers["fx"]
         # we expect 6 * 32-bit values => 12 registers
         reg_count = 12
         registers = self._read_registers(start, reg_count)
@@ -323,7 +346,10 @@ class BlueDotLB75(FTSensorBase):
                     # no data yet -> fallback to blocking read
                     return self._read(n=1)
                 # return copy
-                return {"ft": np.array(self.latest_frame["ft"]).reshape(1, 6), "timestamp_ms": float(self.latest_frame["timestamp_ms"])}
+                return {
+                    "ft": np.array(self.latest_frame["ft"]).reshape(1, 6),
+                    "timestamp_ms": float(self.latest_frame["timestamp_ms"]),
+                }
 
     # -------------------------
     # Streaming control
@@ -344,7 +370,9 @@ class BlueDotLB75(FTSensorBase):
             self.streaming_data = {"ft": [], "timestamp_ms": []}
         self.in_streaming.set()
 
-        self.thread = Thread(target=partial(self._streaming_loop, callback), daemon=True)
+        self.thread = Thread(
+            target=partial(self._streaming_loop, callback), daemon=True
+        )
         self.thread.start()
 
     def _streaming_loop(self, callback: Optional[Callable] = None) -> None:
@@ -366,7 +394,9 @@ class BlueDotLB75(FTSensorBase):
                     with self.streaming_mutex:
                         if self._collect_streaming_data:
                             self.streaming_data["ft"].append(frame["ft"])
-                            self.streaming_data["timestamp_ms"].append(frame["timestamp_ms"])
+                            self.streaming_data["timestamp_ms"].append(
+                                frame["timestamp_ms"]
+                            )
                 else:
                     try:
                         callback(deepcopy(frame))
@@ -398,7 +428,10 @@ class BlueDotLB75(FTSensorBase):
             self.thread.join(timeout=2.0)
         # return a copy
         with self.streaming_mutex:
-            data = {"ft": list(self.streaming_data["ft"]), "timestamp_ms": list(self.streaming_data["timestamp_ms"])}
+            data = {
+                "ft": list(self.streaming_data["ft"]),
+                "timestamp_ms": list(self.streaming_data["timestamp_ms"]),
+            }
             # clear internal storage
             self.streaming_data = {"ft": [], "timestamp_ms": []}
         return data
@@ -414,7 +447,9 @@ class BlueDotLB75(FTSensorBase):
          - freq_{freq:.2f}.png (via draw_time)
          - ft.png (via draw_items)
         """
-        assert len(streaming_data["ft"]) == len(streaming_data["timestamp_ms"]), "length mismatch"
+        assert len(streaming_data["ft"]) == len(streaming_data["timestamp_ms"]), (
+            "length mismatch"
+        )
         os.makedirs(save_path, exist_ok=True)
         ts_arr = np.array(streaming_data["timestamp_ms"], dtype=float)
         ft_arr = np.array(streaming_data["ft"], dtype=float)
@@ -426,7 +461,10 @@ class BlueDotLB75(FTSensorBase):
         else:
             freq = float(self.fps)
         try:
-            draw_time(list(streaming_data["timestamp_ms"]), os.path.join(save_path, f"freq_{freq:.2f}.png"))
+            draw_time(
+                list(streaming_data["timestamp_ms"]),
+                os.path.join(save_path, f"freq_{freq:.2f}.png"),
+            )
         except Exception:
             pass
         try:
@@ -438,7 +476,9 @@ class BlueDotLB75(FTSensorBase):
     # Utility: tare compensation
     # -------------------------
     @staticmethod
-    def raw2tare(raw_ft: np.ndarray, tare: Dict[str, Union[float, np.ndarray]], pose: np.ndarray) -> np.ndarray:
+    def raw2tare(
+        raw_ft: np.ndarray, tare: Dict[str, Union[float, np.ndarray]], pose: np.ndarray
+    ) -> np.ndarray:
         """
         Compensate raw force/torque reading with tare (bias) and gravity.
         raw_ft: (6,) array: [fx,fy,fz,mx,my,mz]
@@ -452,11 +492,11 @@ class BlueDotLB75(FTSensorBase):
         raw_f = np.array(raw_ft[:3], dtype=float)
         raw_t = np.array(raw_ft[3:], dtype=float)
 
-        f = raw_f - np.array(tare.get('f0', np.zeros(3)), dtype=float)
+        f = raw_f - np.array(tare.get("f0", np.zeros(3)), dtype=float)
         # gravity in base frame: [0,0,-9.8*m]; map to sensor via inv(pose)
-        m = float(tare.get('m', 0.0))
-        c = np.array(tare.get('c', np.zeros(3)), dtype=float)
-        t0 = np.array(tare.get('t0', np.zeros(3)), dtype=float)
+        m = float(tare.get("m", 0.0))
+        c = np.array(tare.get("c", np.zeros(3)), dtype=float)
+        t0 = np.array(tare.get("t0", np.zeros(3)), dtype=float)
 
         # inverse rotation (transpose)
         Rinv = np.linalg.inv(pose)
@@ -482,41 +522,43 @@ class BlueDotLB75(FTSensorBase):
             return
 
         # if data['ft'] is (N,6) choose last row
-        ft = data['ft']
+        ft = data["ft"]
         if isinstance(ft, np.ndarray) and ft.ndim == 2:
             f = ft[-1]
         else:
-            f = np.array(ft).reshape(6,)
+            f = np.array(ft).reshape(
+                6,
+            )
 
-        ts = data.get('timestamp_ms', time.time() * 1000.0)
+        ts = data.get("timestamp_ms", time.time() * 1000.0)
         print("=" * 50)
         print(f"Timestamp: {ts:.3f} ms")
         print(f"Fx: {f[0]:8.4f}  Fy: {f[1]:8.4f}  Fz: {f[2]:8.4f}")
         print(f"Mx: {f[3]:8.4f}  My: {f[4]:8.4f}  Mz: {f[5]:8.4f}")
         print("=" * 50)
-    
-    def get_mean_data(self, n: int = 1, name: str = 'ft') -> Optional[np.ndarray]:
+
+    def get_mean_data(self, n: int = 1, name: str = "ft") -> Optional[np.ndarray]:
         """
         Read n samples sequentially and return the mean of the specified data ('ft').
         This is a blocking read operation.
         """
         # 使用已有的 _read 方法获取 n 帧数据
-        data = self._read(n=n) 
-        
+        data = self._read(n=n)
+
         # 检查返回的数据是否有效
         if data is None or name not in data or data[name].size == 0:
             return None
-        
+
         # 确保数据是 (N, 6) 的 NumPy 数组
         ft_array = data[name]
-        
+
         # 返回平均值 (沿第一轴 N 取平均)
         if ft_array.ndim == 2 and ft_array.shape[0] > 0:
             return np.mean(ft_array, axis=0)
         elif ft_array.ndim == 1:
-            return ft_array # 如果只有一帧 (N=1), 直接返回该帧
+            return ft_array  # 如果只有一帧 (N=1), 直接返回该帧
         else:
-            return None # 数据格式异常
+            return None  # 数据格式异常
 
 
 # -------------------------
@@ -542,8 +584,11 @@ def main():
         buffered = sensor.stop_streaming()
         print(f"Buffered frames: {len(buffered['ft'])}")
         # print last frame
-        if len(buffered['ft']) > 0:
-            last = {"ft": np.array(buffered['ft']), "timestamp_ms": buffered['timestamp_ms'][-1]}
+        if len(buffered["ft"]) > 0:
+            last = {
+                "ft": np.array(buffered["ft"]),
+                "timestamp_ms": buffered["timestamp_ms"][-1],
+            }
             sensor.print_sensor_data(last)
         # save
         sensor.save_streaming("sensor_saved", buffered)

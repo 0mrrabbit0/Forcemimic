@@ -8,16 +8,17 @@ import time
 PORT = "/dev/ttyUSB0"
 BAUD = 115200
 
+
 def open_serial():
     """打开串口"""
     try:
         ser = serial.Serial(
             PORT,
             BAUD,
-            timeout=0.5,           # 读超时
+            timeout=0.5,  # 读超时
             bytesize=serial.EIGHTBITS,
             parity=serial.PARITY_NONE,
-            stopbits=serial.STOPBITS_ONE
+            stopbits=serial.STOPBITS_ONE,
         )
         print(f"[OK] 成功打开串口: {PORT}")
         return ser
@@ -25,21 +26,24 @@ def open_serial():
         print(f"[ERROR] 打开串口失败: {e}")
         exit(1)
 
+
 def send_cmd(ser, cmd: str):
     """发送命令（自动添加 \r\n）"""
     full_cmd = cmd + "\r\n"
     ser.write(full_cmd.encode())
     print(f"[SEND] {cmd}")
 
+
 def read_response(ser):
     """读取所有可读数据"""
     time.sleep(0.05)
-    data = ser.read_all().decode(errors='ignore')
+    data = ser.read_all().decode(errors="ignore")
     if data:
         print("[RECV]")
         print(data)
     else:
         print("[RECV] (无返回)")
+
 
 def main():
     ser = open_serial()
@@ -73,18 +77,18 @@ def main():
 
 if __name__ == "__main__":
     # main()
-    while(True):
+    while True:
         ser = serial.Serial(
-                PORT,
-                BAUD,
-                timeout=0.5,           # 读超时
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE
-            )
+            PORT,
+            BAUD,
+            timeout=0.5,  # 读超时
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+        )
         full_cmd = "spi" + "\r\n"
         ser.write(full_cmd.encode())
         ser.write(b"spi\r\n")  # 发送 SPI 命令
         time.sleep(0.05)
-        raw = ser.read_all().decode(errors='ignore')
+        raw = ser.read_all().decode(errors="ignore")
         print(raw)
